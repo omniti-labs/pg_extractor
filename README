@@ -1,0 +1,6 @@
+Design goal is to make an automated DDL export tool for PostgreSQL that is as widely compatible across versions as possible. This is done using only the pg_dump and pg_restore tools that come with PostgreSQL. PG version limitations will be solely based on the options needed by those two tools and the output they are able to provide. Currently testing with 8.3+.
+Found that the tool was also extremely useful for doing data dumps that require more specialized filtering than pg_dump can currently provide. 
+
+Tool also provides limited version control integration. Autocommit using SVN is now working and Git is planned.
+
+Development is early and very active right now so expect frequent and sometimes drastic changes. Should be safe for production use, but don't be surprised at bugs. Please report them!
