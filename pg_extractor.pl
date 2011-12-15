@@ -41,35 +41,41 @@ my $dmp_tmp_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
                                     DIR => $O->{'basedir'});
 
-print "Creating temp dump...\n" if !$O->{'quiet'};
-create_temp_dump();
+if ($O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'}) {
+    print "Creating temp dump...\n" if !$O->{'quiet'};
+    create_temp_dump();
 
-print "Building object lists...\n" if !$O->{'quiet'};
-build_object_lists();
+    print "Building object lists...\n" if !$O->{'quiet'};
+    build_object_lists();
 
 
-if (@tablelist) { 
-    print "Creating table ddl files...\n" if !$O->{'quiet'};
-    create_ddl_files(\@tablelist, "table");    
+    if (@tablelist) { 
+        print "Creating table ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@tablelist, "table");    
+    }
+
+    if (@viewlist) { 
+        print "Creating view ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@viewlist, "view");   
+    }  
+
+    if (@functionlist) { 
+        print "Creating function ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@functionlist, "function"); 
+    }    
+
+    if (@typelist) {
+        print "Creating type ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@typelist, "type");
+    }
 }
 
-if (@viewlist) { 
-    print "Creating view ddl files...\n" if !$O->{'quiet'};
-    create_ddl_files(\@viewlist, "view");   
-}  
-
-if (@functionlist) { 
-    print "Creating function ddl files...\n" if !$O->{'quiet'};
-    create_ddl_files(\@functionlist, "function"); 
-}    
-
-if (@typelist) {
-    print "Creating type ddl files...\n" if !$O->{'quiet'};
-    create_ddl_files(\@typelist, "type");
+if ($O->{'getroles'}) {
+    create_role_ddl();
 }
 
-print "Creating pg_dump file...\n" if !$O->{'quiet'};
 if ($O->{'sqldump'}) {
+    print "Creating pg_dump file...\n" if !$O->{'quiet'};
     copy_sql_dump();
 }
 
@@ -97,6 +103,7 @@ sub get_options {
     my %o = (
         'pgdump' => "pg_dump",
         'pgrestore' => "pg_restore",
+        'pgdumpall' => "pg_dumpall",
         'ddlbase' => ".",
         
         'svncmd' => 'svn',
@@ -115,11 +122,13 @@ sub get_options {
         'dbname|d=s',
         'pgdump=s',
         'pgrestore=s',
+        'pgdumpall=s',
         'quiet!',
         'gettables!',
         'getviews!',
         'getfuncs!',
         'gettypes!',
+        'getroles!',
         'getall!',
         'getdata!',
         'Fc!',
@@ -177,14 +186,15 @@ sub set_config {
         $ENV{PGPASSFILE} = $O->{'pgpass'};
     }
 
-    if (!$O->{'gettables'} && !$O->{'getfuncs'} && !$O->{'getviews'} && !$O->{'gettypes'}) {
+    if (!$O->{'gettables'} && !$O->{'getfuncs'} && !$O->{'getviews'} && !$O->{'gettypes'} && !$O->{'getroles'}) {
         if ($O->{'getall'}) {
             $O->{'gettables'} = 1;
             $O->{'getfuncs'} = 1;
             $O->{'getviews'} = 1;
             $O->{'gettypes'} = 1;
+            $O->{'getroles'} = 1;
         } else {
-            die("NOTICE: No output options set. Please set one or more of the following: --gettables, --getviews, --getprocs, --gettypes. Or --getall for all. Use --help to show all options\n");
+            die("NOTICE: No output options set. Please set one or more of the following: --gettables, --getviews, --getprocs, --gettypes, --getroles. Or --getall for all. Use --help to show all options\n");
         }
     }
 
@@ -234,7 +244,6 @@ sub set_config {
         print "Building include lists...\n" if !$O->{'quiet'};
         build_includes();
     }
-    
      
 }
 
@@ -670,12 +679,20 @@ sub create_ddl_files {
     }  # end @objlist foreach
 }
 
+sub create_role_ddl {
+    my $rolesdir = create_dirs('role');
+    my $filepath = File::Spec->catfile($rolesdir, "roles_dump.sql");
+    my $dumprolecmd = "$O->{pgdumpall} --roles-only > $filepath";
+    system $dumprolecmd;
+}
+
 sub copy_sql_dump {
     my $dump_folder = create_dirs("pg_dump");
     my $pgdumpfile = File::Spec->catfile($dump_folder, "$ENV{PGDATABASE}_pgdump.pgr");
     copy ($dmp_tmp_file->filename, $pgdumpfile);
 }
 
+#TODO add commands to cleanup empty folders
 sub delete_files {
     my @files_to_delete = files_to_delete();
     foreach my $f (@files_to_delete) {
@@ -684,6 +701,7 @@ sub delete_files {
 }
 
 
+# TODO account for objects with special characters in name
 # Get a list of the files on disk to remove from disk. Kept as separate function so SVN/Git can use to delete files from VCS as well.
 sub files_to_delete {
     my %file_list;
@@ -747,6 +765,12 @@ sub files_to_delete {
         }
     } 
     
+    if (!defined($O->{'getroles'}) && ($dirh = DirHandle->new($O->{'basedir'}."/role")) ) {
+        while (defined(my $d = $dirh->read())) {
+        	$file_list{"role/$d"} = 1 if (-f "$O->{basedir}/role/$d" && $d =~ m/\.sql$/o);
+        }
+    } 
+    
     # The files that are left in the %file_list are those for which the object that they represent has been removed or is no longer desired.
     my @files = map { "$O->{basedir}/$_" } keys(%file_list);
     return @files;
@@ -776,6 +800,7 @@ sub svn_commit {
         system $svn_add_cmd;
     }
     
+    #TODO add commands to cleanup empty folders
     if ($O->{'svndel'}) {
         my @files_to_delete = files_to_delete();
         if (scalar(@files_to_delete > 0)) {
@@ -887,6 +912,10 @@ location of pg_dump executable
 =item --pgrestore         : 
 
 location of pg_restore executable
+
+=item --pgdumpall
+
+location of pg_dumpall executable (only required if --getroles or --getall options are used)
         
 =back
 
@@ -912,11 +941,15 @@ export custom types.
 
 =item --getall
 
-gets all tables, views, functions and types. Shortcut to having to set all --get* options. Does NOT include data
+gets all tables, views, functions, types and roles. Shortcut to having to set all --get* options. Does NOT include data
 
 =item --getdata
 
 include data in the output files. Changes the pg_dump command to use -Fc instead of -Fp for tables only.
+
+=item --getroles
+
+include an export file containing all roles in the cluster.
 
 =item --Fc
 
@@ -1065,9 +1098,9 @@ Result of running Sys::Hostname::hostname
 
 '.'  (directory pg_extractor is run from)
 
-=item --pgdump/pgrestore    
+=item --pgdump/pgrestore/pgdumpall    
 
-searches \$PATH 
+searches $PATH 
         
 =head1 AUTHOR
 
