@@ -6,7 +6,7 @@ use warnings;
 # Copyright 2011, OmniTI, Inc. (http://www.omniti.com/)
 # See complete license and copyright information at the bottom of this script  
 # For newer versions of this script, please see:
-# https://github.com/keithf4/pg_extractor
+# https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl (coming soon)
 
 
@@ -1072,8 +1072,8 @@ searches \$PATH
 =head1 AUTHOR
 
     Keith Fiske
-    OmniIT, Inc - http://www.omniti.com
-    Download source from https://github.com/keithf4/pg_extractor
+    OmniTI, Inc - http://www.omniti.com
+    Download source from https://github.com/omniti-labs/pg_extractor
     
 =head1 LICENSE AND COPYRIGHT
 
