@@ -899,6 +899,7 @@ database name to connect to. Also used as directory name under --hostname
 =over
 
 =item --ddlbase           : 
+
 base directory for ddl export
 
 =item --hostname          : 
@@ -939,6 +940,10 @@ export function and/or aggregate ddl. Overloaded functions will all be in the sa
 
 export custom types.
 
+=item --getroles
+
+include an export file containing all roles in the cluster.
+
 =item --getall
 
 gets all tables, views, functions, types and roles. Shortcut to having to set all --get* options. Does NOT include data
@@ -947,15 +952,11 @@ gets all tables, views, functions, types and roles. Shortcut to having to set al
 
 include data in the output files. Changes the pg_dump command to use -Fc instead of -Fp for tables only.
 
-=item --getroles
-
-include an export file containing all roles in the cluster.
-
 =item --Fc
 
 output in pg_dump custom format (useful with --getdata). Otherwise, default is always -Fp
 
-=item --N
+=item --N 
 
 csv list of schemas to EXCLUDE
 
@@ -963,7 +964,7 @@ csv list of schemas to EXCLUDE
 
 path to a file listing schemas to EXCLUDE.
 
-=item --n
+=item --n 
 
 csv list of schemas to INCLUDE
 
@@ -971,7 +972,7 @@ csv list of schemas to INCLUDE
 
 path to a file listing schemas to INCLUDE.
 
-=item --T
+=item --T 
 
 csv list of tables to EXCLUDE. Schema name may be required (same for all table options)
 
@@ -979,7 +980,7 @@ csv list of tables to EXCLUDE. Schema name may be required (same for all table o
 
 path to file listing tables to EXCLUDE.
 
-=item --t
+=item --t 
 
 csv list of tables to INCLUDE. Only these tables will be exported
 
@@ -987,7 +988,7 @@ csv list of tables to INCLUDE. Only these tables will be exported
 
 path to file listing tables to INCLUDE.
 
-=item --V
+=item --V 
 
 csv list of views to EXCLUDE. 
 
@@ -995,7 +996,7 @@ csv list of views to EXCLUDE.
 
 path to file listing views to EXCLUDE.
 
-=item --v
+=item --v 
 
 csv list of views to INCLUDE. Only these views will be exported
 
@@ -1026,6 +1027,14 @@ csv list of object owners to INCLUDE. Only objects owned by these owners will be
 =item --o_file
 
 path to file listing object owners to INCLUDE. Only objects owned by these owners will be exported
+
+=item --regex_incl_file
+
+path to a file containing a regex pattern of objects to INCLUDE. Note this will match against all objects (tables, views, functions, etc)
+
+=item --regex_excl_file
+
+path to a file containing a regex pattern of objects to EXCLUDE. Note this will match against all objects (tables, views, functions, etc)
 
 =back
 

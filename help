@@ -33,7 +33,9 @@ OPTIONS
         --hostname
 
   directories
-    --ddlbase : base directory for ddl export
+    --ddlbase :
+        base directory for ddl export
+
     --hostname :
         hostname of the database server; used as directory name under
         --ddlbase
@@ -63,6 +65,9 @@ OPTIONS
     --gettypes
         export custom types.
 
+    --getroles
+        include an export file containing all roles in the cluster.
+
     --getall
         gets all tables, views, functions, types and roles. Shortcut to
         having to set all --get* options. Does NOT include data
@@ -70,9 +75,6 @@ OPTIONS
     --getdata
         include data in the output files. Changes the pg_dump command to use
         -Fc instead of -Fp for tables only.
-
-    --getroles
-        include an export file containing all roles in the cluster.
 
     --Fc
         output in pg_dump custom format (useful with --getdata). Otherwise,
@@ -128,6 +130,16 @@ OPTIONS
     --o_file
         path to file listing object owners to INCLUDE. Only objects owned by
         these owners will be exported
+
+    --regex_incl_file
+        path to a file containing a regex pattern of objects to INCLUDE.
+        Note this will match against all objects (tables, views, functions,
+        etc)
+
+    --regex_excl_file
+        path to a file containing a regex pattern of objects to EXCLUDE.
+        Note this will match against all objects (tables, views, functions,
+        etc)
 
   svn
     --svn
