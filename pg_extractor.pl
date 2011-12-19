@@ -1122,7 +1122,7 @@ perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump
 
 perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs --n=keith
 
-=item Extract only specifically named functions in the given filename (newline separated list). Ensure the full function signature is given with only the variable types for arguments. When using include files for objects other than tables, it's best to explicitely name the schemas they're in as well (it makes the temporary dump file that's created smaller).
+=item Extract only specifically named functions in the given filename (newline separated list). Ensure the full function signature is given with only the variable types for arguments. When using include files, it's best to explicitely name the schemas they're in as well (it makes the temporary dump file that's created smaller).
 
 perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs -p_file=/home/postgres/func_incl --n=dblink
 
