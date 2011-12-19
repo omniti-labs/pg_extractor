@@ -1091,7 +1091,7 @@ show this help page
 
 =head2 DEFAULTS
 
-The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST, $PGPASSFILE
+The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST, $PGPASSFILE.
 If not set and associated option is not passed, defaults will work the same as standard pg_dump.
         
 =over
@@ -1118,10 +1118,19 @@ searches $PATH
 
 perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump 
 
-
 =item Extract only functions from the "keith" schema
 
 perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs --n=keith
+
+=item Extract only specifically named functions in the given filename (newline separated list). Ensure the full function signature is given with only the variable types for arguments. When using include files for objects other than tables, it's best to explicitely name the schemas they're in as well (it makes the temporary dump file that's created smaller).
+
+perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs -p_file=/home/postgres/func_incl --n=dblink
+
+ func_incl file contains:
+ dblink_exec(text, text)
+ dblink_exec(text, text, boolean)
+ dblink_exec(text)
+ dblink_exec(text, boolean)
 
 =item Extract only the tables listed in the given filename (newline separated list) along with the data in the pg_dump custom format.
 
