@@ -1,0 +1,216 @@
+PGExtractor - pg_extractor.pl
+DESCRIPTION
+A script for doing advanced dump filtering and managing schema for PostgreSQL databases
+SYNOPSIS
+    /path/to/pg_extractor.pl [options]
+
+  NOTES
+     - Requires using a trusted user or a .pgpass file. No option to send password.
+     - For all options that use an external file list, separate each item in the file by a newline. 
+        pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename" 
+     - If no schema name is given in an filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating 
+        a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
+     - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
+        Ex: table|name becomes table,7cname.sql
+     - Comments/Descriptions on any object should be included in the export file. If you see any missing, please contact the author
+
+OPTIONS
+  database connection
+    --host (-h)
+        database server host or socket directory
+
+    --port (-p)
+        database server port
+
+    --username (-U) :
+        database user name
+
+    --pgpass
+        full path to location of .pgpass file
+
+    --dbname (-d) :
+        database name to connect to. Also used as directory name under
+        --hostname
+
+  directories
+    --ddlbase : base directory for ddl export
+    --hostname :
+        hostname of the database server; used as directory name under
+        --ddlbase
+
+    --pgdump :
+        location of pg_dump executable
+
+    --pgrestore :
+        location of pg_restore executable
+
+    --pgdumpall
+        location of pg_dumpall executable (only required if --getroles or
+        --getall options are used)
+
+  filters
+    --gettables
+        export table ddl. Each file includes table's indexes, constraints,
+        sequences, comments, rules and triggers
+
+    --getviews
+        export view ddl
+
+    --getfuncs
+        export function and/or aggregate ddl. Overloaded functions will all
+        be in the same base filename
+
+    --gettypes
+        export custom types.
+
+    --getall
+        gets all tables, views, functions, types and roles. Shortcut to
+        having to set all --get* options. Does NOT include data
+
+    --getdata
+        include data in the output files. Changes the pg_dump command to use
+        -Fc instead of -Fp for tables only.
+
+    --getroles
+        include an export file containing all roles in the cluster.
+
+    --Fc
+        output in pg_dump custom format (useful with --getdata). Otherwise,
+        default is always -Fp
+
+    --N csv list of schemas to EXCLUDE
+
+    --N_file
+        path to a file listing schemas to EXCLUDE.
+
+    --n csv list of schemas to INCLUDE
+
+    --n_file
+        path to a file listing schemas to INCLUDE.
+
+    --T csv list of tables to EXCLUDE. Schema name may be required (same for
+        all table options)
+
+    --T_file
+        path to file listing tables to EXCLUDE.
+
+    --t csv list of tables to INCLUDE. Only these tables will be exported
+
+    --t_file
+        path to file listing tables to INCLUDE.
+
+    --V csv list of views to EXCLUDE.
+
+    --V_file
+        path to file listing views to EXCLUDE.
+
+    --v csv list of views to INCLUDE. Only these views will be exported
+
+    --v_file
+        path to file listing views to INCLUDE.
+
+    --P_file
+        path to file listing functions or aggregates to EXCLUDE.
+
+    --p_file
+        path to file listing functions or aggregates to INCLUDE.
+
+    --O csv list of object owners to EXCLUDE. Objects owned by these owners
+        will NOT be exported
+
+    --O_file
+        path to file listing object owners to EXCLUDE. Objects owned by
+        these owners will NOT be exported
+
+    --o csv list of object owners to INCLUDE. Only objects owned by these
+        owners will be exported
+
+    --o_file
+        path to file listing object owners to INCLUDE. Only objects owned by
+        these owners will be exported
+
+  svn
+    --svn
+        perform svn commit of ddlbase/hostname/dbname folder. NOTE: Svn
+        username & password (if needed) must be manually entered into the
+        options section of the source code.
+
+    --svndel
+        delete any files from the svn repository that are no longer part of
+        the desired export. --delete option is not required when this is
+        set, since it will also delete files from disk if they were part of
+        a previous export.
+
+    --svncmd
+        location of svn command if it is not in the PATH.
+
+    --commitmsg
+        Commit message to send to svn
+
+    --commitmsgfn
+        File containing the commit message to send to svn
+
+  other
+    --delete
+        Use when running again on the same destination directory as previous
+        runs so that objects deleted from the database or items that don't
+        match your filters also have their old files deleted. WARNING: This
+        WILL delete ALL .sql files which don't match your desired output in
+        the destination folders. Not required when using the --svndel
+        option.
+
+    --sqldump
+        Also generate a pg_dump file. Will only contain schemas and tables
+        designated by original options. Note that other filtered items will
+        NOT be filtered out of the dump file.
+
+    --quiet
+        Suppress all program output
+
+    --help (-?)
+        show this help page
+
+  DEFAULTS
+    The following environment values are used: $PGDATABASE, $PGPORT,
+    $PGUSER, $PGHOST, $PGPASSFILE If not set and associated option is not
+    passed, defaults will work the same as standard pg_dump.
+
+    --hostname
+        Result of running Sys::Hostname::hostname
+
+    --ddlbase
+        '.' (directory pg_extractor is run from)
+
+    --pgdump/pgrestore/pgdumpall
+        searches $PATH
+
+AUTHOR
+        Keith Fiske
+        OmniTI, Inc - http://www.omniti.com
+        Download source from https://github.com/omniti-labs/pg_extractor
+
+LICENSE AND COPYRIGHT
+    Copyright (c) 2011 OmniTI, Inc.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+      1. Redistributions of source code must retain the above copyright notice,
+         this list of conditions and the following disclaimer.
+      2. Redistributions in binary form must reproduce the above copyright notice,
+         this list of conditions and the following disclaimer in the documentation
+         and/or other materials provided with the distribution.
+
+    THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR
+    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
