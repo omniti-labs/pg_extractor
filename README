@@ -1,6 +1,4 @@
-Design goal is to make an automated DDL export tool for PostgreSQL that is as widely compatible across versions as possible. This is done using only the pg_dump and pg_restore tools that come with PostgreSQL. PG version limitations will be solely based on the options needed by those two tools and the output they are able to provide. Currently testing with 8.3+.
-Found that the tool was also extremely useful for doing data dumps that require more specialized filtering than pg_dump can currently provide. 
+PGExtractor is designed to give more advanced filtering options to pg_dump. It dumps each object (table, function, view, etc) out into its own file instead of one single dump file. This makes using the dumps as a reference easier and allows integration with a VCS (currently svn, git coming soon). By default data is not dumped, but is easily done with a single option and can be done as plaintext or pg_dump's custom format. Object filtering can be done directly via command line options or fed in with external text files. Regex pattern matching is also possible.
+See --help for a full list of available options. Documentation within the script is done in POD format.
 
-Tool also provides limited version control integration. Autocommit using SVN is now working and Git is planned.
-
-Development is early and very active right now so expect frequent and sometimes drastic changes. Should be safe for production use, but don't be surprised at bugs. Please report them!
+Development is still ongoing but this should be safe for production use. The script only uses pg_dump/all to touch the database. pg_restore is only used for generating ddl and does not ever touch the database. Please report any bugs!
