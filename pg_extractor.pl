@@ -7,7 +7,7 @@ use warnings;
 # See complete license and copyright information at the bottom of this script  
 # For newer versions of this script, please see:
 # https://github.com/omniti-labs/pg_extractor
-# POD Documentation also available by issuing pod2text pg_extractor.pl (coming soon)
+# POD Documentation also available by issuing pod2text pg_extractor.pl
 
 
 use DirHandle;
@@ -71,6 +71,7 @@ if ($O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'
 }
 
 if ($O->{'getroles'}) {
+     print "Creating role ddl file...\n" if !$O->{'quiet'};
     create_role_ddl();
 }
 
@@ -98,7 +99,6 @@ exit;
 
 
 # TODO Look through pg_restore options and add more here
-# TODO See if role export can be done
 sub get_options {
     my %o = (
         'pgdump' => "pg_dump",
@@ -1047,11 +1047,6 @@ path to a file containing a regex pattern of objects to EXCLUDE. Note this will 
 perform svn commit of ddlbase/hostname/dbname folder. 
 NOTE: Svn username & password (if needed) must be manually entered into the options section of the source code.
 
-=item --svndel
-
-delete any files from the svn repository that are no longer part of the desired export. 
---delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
-
 =item --svncmd
 
 location of svn command if it is not in the PATH.
@@ -1064,6 +1059,10 @@ Commit message to send to svn
 
 File containing the commit message to send to svn 
 
+=item --svndel
+
+delete any files from the svn repository that are no longer part of the desired export. WARNING: This WILL delete ALL .sql files which don't match your desired output in the destination folders. --delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
+
 =back
         
 =head2 other
@@ -1073,9 +1072,7 @@ File containing the commit message to send to svn
 =item --delete
 
 Use when running again on the same destination directory as previous runs so that objects deleted from the
-database or items that don't match your filters also have their old files deleted.
-WARNING: This WILL delete ALL .sql files which don't match your desired output in the destination folders.
-Not required when using the --svndel option.
+database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files which don't match your desired output in the destination folders. Not required when using the --svndel option.
 
 =item --sqldump
 
@@ -1110,6 +1107,33 @@ Result of running Sys::Hostname::hostname
 =item --pgdump/pgrestore/pgdumpall    
 
 searches $PATH 
+
+=back
+
+=head1 EXAMPLES
+
+=over
+
+=item Basic minimum usage. This will extract all tables, functions/aggregates, views, types & roles. It uses the directory that pg_extractor is run from as the base directory (objects will be found in ./hostname/mydb/) and will also produce a permanent copy of the pg_dump file that the objects were extracted from. It expects the locations of the postgres binaries to be in the $PATH.
+
+perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump 
+
+
+=item Extract only functions from the "keith" schema
+
+perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs --n=keith
+
+=item Extract only the tables listed in the given filename (newline separated list) along with the data in the pg_dump custom format.
+
+perl pg_extractor.pl -U postgres --dbname=mydb --gettables -Fc --t_file=/home/postgres/tbl_incl --getdata
+
+=item Example of excluding partitions that have the pattern tablename_pYYYY_MM or fairly similar. Binaries are also not in the $PATH and EXCLUDES several schemas. part_exclude file contains: _p_?(20|19)\d\d(_?\d+)*$ . 
+
+perl pg_extractor.pl -U postgres --dbname=mydb --pgdump=/opt/pgsql/bin/pg_dump --pgrestore=/opt/pgsql/bin/pg_restore --pgdumpall=/opt/pgsql/bin/pg_dumpall --getall --regex_excl_file=/home/postgres/part_exclude --N=schema1,schema2,schema3,schema4
+
+=item Using svn (svn username & password must be set in script source). Also cleans up objects from svn that have been removed from the database.
+
+perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn --commitmsg="Weekly svn commit of postgres schema" --svndel
 
 =back
         

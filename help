@@ -1,10 +1,14 @@
 PGExtractor - pg_extractor.pl
+
 DESCRIPTION
 A script for doing advanced dump filtering and managing schema for PostgreSQL databases
+
 SYNOPSIS
+
     /path/to/pg_extractor.pl [options]
 
   NOTES
+
      - Requires using a trusted user or a .pgpass file. No option to send password.
      - For all options that use an external file list, separate each item in the file by a newline. 
         pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename" 
@@ -15,7 +19,9 @@ SYNOPSIS
      - Comments/Descriptions on any object should be included in the export file. If you see any missing, please contact the author
 
 OPTIONS
+
   database connection
+
     --host (-h)
         database server host or socket directory
 
@@ -29,16 +35,15 @@ OPTIONS
         full path to location of .pgpass file
 
     --dbname (-d) :
-        database name to connect to. Also used as directory name under
-        --hostname
+        database name to connect to. Also used as directory name under --hostname
 
   directories
+
     --ddlbase :
         base directory for ddl export
 
     --hostname :
-        hostname of the database server; used as directory name under
-        --ddlbase
+        hostname of the database server; used as directory name under --ddlbase
 
     --pgdump :
         location of pg_dump executable
@@ -47,20 +52,21 @@ OPTIONS
         location of pg_restore executable
 
     --pgdumpall
-        location of pg_dumpall executable (only required if --getroles or
-        --getall options are used)
+        location of pg_dumpall executable (only required if --getroles or --getall options
+        are used)
 
   filters
+
     --gettables
-        export table ddl. Each file includes table's indexes, constraints,
-        sequences, comments, rules and triggers
+        export table ddl. Each file includes table's indexes, constraints, sequences,
+        comments, rules and triggers
 
     --getviews
         export view ddl
 
     --getfuncs
-        export function and/or aggregate ddl. Overloaded functions will all
-        be in the same base filename
+        export function and/or aggregate ddl. Overloaded functions will all be in the same
+        base filename
 
     --gettypes
         export custom types.
@@ -69,16 +75,16 @@ OPTIONS
         include an export file containing all roles in the cluster.
 
     --getall
-        gets all tables, views, functions, types and roles. Shortcut to
-        having to set all --get* options. Does NOT include data
+        gets all tables, views, functions, types and roles. Shortcut to having to set all
+        --get* options. Does NOT include data
 
     --getdata
-        include data in the output files. Changes the pg_dump command to use
-        -Fc instead of -Fp for tables only.
+        include data in the output files. Changes the pg_dump command to use -Fc instead
+        of -Fp for tables only.
 
     --Fc
-        output in pg_dump custom format (useful with --getdata). Otherwise,
-        default is always -Fp
+        output in pg_dump custom format (useful with --getdata). Otherwise, default is
+        always -Fp
 
     --N csv list of schemas to EXCLUDE
 
@@ -90,8 +96,8 @@ OPTIONS
     --n_file
         path to a file listing schemas to INCLUDE.
 
-    --T csv list of tables to EXCLUDE. Schema name may be required (same for
-        all table options)
+    --T csv list of tables to EXCLUDE. Schema name may be required (same for all table
+        options)
 
     --T_file
         path to file listing tables to EXCLUDE.
@@ -117,41 +123,34 @@ OPTIONS
     --p_file
         path to file listing functions or aggregates to INCLUDE.
 
-    --O csv list of object owners to EXCLUDE. Objects owned by these owners
-        will NOT be exported
+    --O csv list of object owners to EXCLUDE. Objects owned by these owners will NOT be
+        exported
 
     --O_file
-        path to file listing object owners to EXCLUDE. Objects owned by
-        these owners will NOT be exported
+        path to file listing object owners to EXCLUDE. Objects owned by these owners will
+        NOT be exported
 
-    --o csv list of object owners to INCLUDE. Only objects owned by these
-        owners will be exported
+    --o csv list of object owners to INCLUDE. Only objects owned by these owners will be
+        exported
 
     --o_file
-        path to file listing object owners to INCLUDE. Only objects owned by
-        these owners will be exported
+        path to file listing object owners to INCLUDE. Only objects owned by these owners
+        will be exported
 
     --regex_incl_file
-        path to a file containing a regex pattern of objects to INCLUDE.
-        Note this will match against all objects (tables, views, functions,
-        etc)
+        path to a file containing a regex pattern of objects to INCLUDE. Note this will
+        match against all objects (tables, views, functions, etc)
 
     --regex_excl_file
-        path to a file containing a regex pattern of objects to EXCLUDE.
-        Note this will match against all objects (tables, views, functions,
-        etc)
+        path to a file containing a regex pattern of objects to EXCLUDE. Note this will
+        match against all objects (tables, views, functions, etc)
 
   svn
-    --svn
-        perform svn commit of ddlbase/hostname/dbname folder. NOTE: Svn
-        username & password (if needed) must be manually entered into the
-        options section of the source code.
 
-    --svndel
-        delete any files from the svn repository that are no longer part of
-        the desired export. --delete option is not required when this is
-        set, since it will also delete files from disk if they were part of
-        a previous export.
+    --svn
+        perform svn commit of ddlbase/hostname/dbname folder. NOTE: Svn username &
+        password (if needed) must be manually entered into the options section of the
+        source code.
 
     --svncmd
         location of svn command if it is not in the PATH.
@@ -162,19 +161,26 @@ OPTIONS
     --commitmsgfn
         File containing the commit message to send to svn
 
+    --svndel
+        delete any files from the svn repository that are no longer part of the desired
+        export. WARNING: This WILL delete ALL .sql files which don't match your desired
+        output in the destination folders. --delete option is not required when this is
+        set, since it will also delete files from disk if they were part of a previous
+        export.
+
   other
+
     --delete
-        Use when running again on the same destination directory as previous
-        runs so that objects deleted from the database or items that don't
-        match your filters also have their old files deleted. WARNING: This
-        WILL delete ALL .sql files which don't match your desired output in
-        the destination folders. Not required when using the --svndel
-        option.
+        Use when running again on the same destination directory as previous runs so that
+        objects deleted from the database or items that don't match your filters also have
+        their old files deleted. WARNING: This WILL delete ALL .sql files which don't
+        match your desired output in the destination folders. Not required when using the
+        --svndel option.
 
     --sqldump
-        Also generate a pg_dump file. Will only contain schemas and tables
-        designated by original options. Note that other filtered items will
-        NOT be filtered out of the dump file.
+        Also generate a pg_dump file. Will only contain schemas and tables designated by
+        original options. Note that other filtered items will NOT be filtered out of the
+        dump file.
 
     --quiet
         Suppress all program output
@@ -183,9 +189,10 @@ OPTIONS
         show this help page
 
   DEFAULTS
-    The following environment values are used: $PGDATABASE, $PGPORT,
-    $PGUSER, $PGHOST, $PGPASSFILE If not set and associated option is not
-    passed, defaults will work the same as standard pg_dump.
+
+    The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST,
+    $PGPASSFILE If not set and associated option is not passed, defaults will work the
+    same as standard pg_dump.
 
     --hostname
         Result of running Sys::Hostname::hostname
@@ -196,17 +203,48 @@ OPTIONS
     --pgdump/pgrestore/pgdumpall
         searches $PATH
 
+EXAMPLES
+
+    Basic minimum usage. This will extract all tables, functions/aggregates, views, types
+    & roles. It uses the directory that pg_extractor is run from as the base directory
+    (objects will be found in ./hostname/mydb/) and will also produce a permanent copy of
+    the pg_dump file that the objects were extracted from. It expects the locations of the
+    postgres binaries to be in the $PATH.
+        perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump
+
+    Extract only functions from the "keith" schema
+        perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs --n=keith
+
+    Extract only the tables listed in the given filename (newline separated list) along
+    with the data in the pg_dump custom format.
+        perl pg_extractor.pl -U postgres --dbname=mydb --gettables -Fc
+        --t_file=/home/postgres/tbl_incl --getdata
+
+    Example of excluding partitions that have the pattern tablename_pYYYY_MM or fairly
+    similar. Binaries are also not in the $PATH and EXCLUDES several schemas. part_exclude
+    file contains: _p_?(20|19)\d\d(_?\d+)*$ .
+        perl pg_extractor.pl -U postgres --dbname=mydb --pgdump=/opt/pgsql/bin/pg_dump
+        --pgrestore=/opt/pgsql/bin/pg_restore --pgdumpall=/opt/pgsql/bin/pg_dumpall
+        --getall --regex_excl_file=/home/postgres/part_exclude
+        --N=schema1,schema2,schema3,schema4
+
+    Using svn (svn username & password must be set in script source). Also cleans up
+    objects from svn that have been removed from the database.
+        perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn
+        --commitmsg="Weekly svn commit of postgres schema" --svndel
+
 AUTHOR
+
         Keith Fiske
         OmniTI, Inc - http://www.omniti.com
         Download source from https://github.com/omniti-labs/pg_extractor
 
 LICENSE AND COPYRIGHT
+
     Copyright (c) 2011 OmniTI, Inc.
 
-    Redistribution and use in source and binary forms, with or without
-    modification, are permitted provided that the following conditions are
-    met:
+    Redistribution and use in source and binary forms, with or without modification, are
+    permitted provided that the following conditions are met:
 
       1. Redistributions of source code must retain the above copyright notice,
          this list of conditions and the following disclaimer.
@@ -214,15 +252,13 @@ LICENSE AND COPYRIGHT
          this list of conditions and the following disclaimer in the documentation
          and/or other materials provided with the distribution.
 
-    THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR
-    IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-    DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
-    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    THIS SOFTWARE IS PROVIDED BY THE AUTHOR "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+    USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+    LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
     POSSIBILITY OF SUCH DAMAGE.
 
