@@ -1101,6 +1101,8 @@ Result of running Sys::Hostname::hostname
 =item --pgdump/pgrestore/pgdumpall    
 
 searches $PATH 
+
+=back
         
 =head1 AUTHOR
 
