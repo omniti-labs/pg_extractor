@@ -950,7 +950,7 @@ gets all tables, views, functions, types and roles. Shortcut to having to set al
 
 =item --getdata
 
-include data in the output files. Changes the pg_dump command to use -Fc instead of -Fp for tables only.
+include data in the output files. Note that format will be plaintext (-Fp) unless -Fc option is explicitly given.
 
 =item --Fc
 

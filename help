@@ -79,8 +79,8 @@ OPTIONS
         --get* options. Does NOT include data
 
     --getdata
-        include data in the output files. Changes the pg_dump command to use -Fc instead
-        of -Fp for tables only.
+        include data in the output files. Note that format will be plaintext (-Fp) unless
+        -Fc option is explicitly given.
 
     --Fc
         output in pg_dump custom format (useful with --getdata). Otherwise, default is
