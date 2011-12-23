@@ -218,7 +218,8 @@ sub set_config {
         die "Cannot include/exclude functions without setting option to export functions (--getfuncs or --getall).\n";
     } 
     
-    if ( ($O->{'inserts'} || $O->{'column-inserts'} ) && (!$O->{'gettables'} && !$O->{'getdata'}) ) {
+    #TODO for some reason not having getdata will not fire this exception.
+    if ( (!$O->{'getdata'} || !$O->{'gettables'}) && ($O->{'inserts'} || $O->{'column-inserts'} ) ) {
         die "Must set --gettables or --getall if using --inserts or --column-inserts.\n";
     }
 
