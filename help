@@ -37,6 +37,10 @@ OPTIONS
     --dbname (-d) :
         database name to connect to. Also used as directory name under --hostname
 
+    --encoding
+        create the dump files in the specified character set encoding. By default, the
+        dump is created in the database encoding.
+
   directories
 
     --ddlbase :
@@ -145,6 +149,20 @@ OPTIONS
         path to a file containing a regex pattern of objects to EXCLUDE. Note this will
         match against all objects (tables, views, functions, etc)
 
+    --no-owner
+        do not add commands to dump files to set ownership of objects to match the
+        original database
+
+    --no-acl OR --no-privileges
+        prevent dumping of access privileges (grant/revoke commands)
+
+    --inserts
+        dump data as INSERT commands (rather than COPY). Only useful with --getdata option
+
+    --column-inserts OR --attribute-inserts
+        dump data as INSERT commands with explicit column names (INSERT INTO table
+        (column, ...) VALUES ...). Only useful with --getdata option
+
   svn
 
     --svn
@@ -191,8 +209,8 @@ OPTIONS
   DEFAULTS
 
     The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST,
-    $PGPASSFILE. If not set and associated option is not passed, defaults will work the
-    same as standard pg_dump.
+    $PGPASSFILE, $PGCLIENTENCODING. If not set and associated option is not passed,
+    defaults will work the same as standard pg_dump.
 
     --hostname
         Result of running Sys::Hostname::hostname

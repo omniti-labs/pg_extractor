@@ -151,6 +151,11 @@ sub get_options {
         'o=s',
         'O_file=s',
         'o_file=s',
+        'encoding=s',
+        'no-owner!',
+        'inserts!',
+        'column-inserts|attribute-inserts!',
+        'no-acl|no-privileges!',
         'regex_incl_file=s',
         'regex_excl_file=s',
         'delete!',
@@ -185,6 +190,9 @@ sub set_config {
     if ($O->{'pgpass'}) {
         $ENV{PGPASSFILE} = $O->{'pgpass'};
     }
+    if ($O->{'encoding'}) {
+        $ENV{PGCLIENTENCODING} = $O->{'encoding'};
+    }
 
     if (!$O->{'gettables'} && !$O->{'getfuncs'} && !$O->{'getviews'} && !$O->{'gettypes'} && !$O->{'getroles'}) {
         if ($O->{'getall'}) {
@@ -210,6 +218,9 @@ sub set_config {
         die "Cannot include/exclude functions without setting option to export functions (--getfuncs or --getall).\n";
     } 
     
+    if ( ($O->{'inserts'} || $O->{'column-inserts'} ) && (!$O->{'gettables'} && !$O->{'getdata'}) ) {
+        die "Must set --gettables or --getall if using --inserts or --column-inserts.\n";
+    }
 
     # TODO Redo option combinations to work like check_postgres (exclude then include)
     #      Until then only allowing one or the other
@@ -280,6 +291,9 @@ sub create_temp_dump {
     }
     if ($O->{'t'} || $O->{'t_file'}) {
         $pgdumpcmd .= "$includetable_dump ";
+    }
+    if ($O->{'no-acl'}) {
+        $pgdumpcmd .= " --no-acl ";
     }
     
     print "$pgdumpcmd > $dmp_tmp_file\n" if !$O->{'quiet'};  
@@ -610,7 +624,20 @@ sub create_ddl_files {
         if ($t->{'type'} eq "TABLE") {
             #TODO see if there's a better way to handle this. Seems sketchy but works for now
             # extra quotes to keep the shell from eating the doublequotes & allow for mixed case or special chars
-            $pgdumpcmd = "$O->{pgdump} $format --table=\'\"$t->{schema}\"\'.\'\"$t->{name}\"\' > $fqfn.sql";
+            $pgdumpcmd = "$O->{pgdump} $format --table=\'\"$t->{schema}\"\'.\'\"$t->{name}\"\'";
+            if ($O->{'inserts'}) {
+                $pgdumpcmd .= " --inserts ";
+            }
+            if ($O->{'column-inserts'}) {
+                $pgdumpcmd .= " --column-inserts ";
+            }
+            if ($O->{'no-owner'}) {
+                $pgdumpcmd .= " --no-owner ";
+            }
+            if ($O->{'no-acl'}) {
+                $pgdumpcmd .= " --no-acl ";
+            }
+            $pgdumpcmd .= " > $fqfn.sql";
             system $pgdumpcmd;
         } else {
             # TODO this is a mess but, amazingly, it works. try and tidy up if possible.
@@ -669,7 +696,11 @@ sub create_ddl_files {
             open LIST, ">", $tmp_ddl_file or die_cleanup("could not create required temp file [$tmp_ddl_file]: $!\n");
             print "$list_file_contents\n" if !$O->{'quiet'};
             print LIST "$list_file_contents";
-            $restorecmd = "$O->{pgrestore} -L $tmp_ddl_file -f $fqfn.sql $dmp_tmp_file";
+            $restorecmd = "$O->{pgrestore} -L $tmp_ddl_file -f $fqfn.sql ";
+            if ($O->{'no-owner'}) {
+                $restorecmd .= " --no-owner ";
+            }
+            $restorecmd .= " $dmp_tmp_file";
             ##print "final restore command: $restorecmd\n";
             system $restorecmd;
             close LIST;
@@ -876,11 +907,11 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
 
 database server host or socket directory
 
-=item --port          (-p)
+=item --port (-p)
 
 database server port
 
-=item --username      (-U) : 
+=item --username (-U) : 
 
 database user name
         
@@ -888,9 +919,13 @@ database user name
 
 full path to location of .pgpass file
         
-=item --dbname        (-d) : 
+=item --dbname (-d) : 
 
 database name to connect to. Also used as directory name under --hostname
+
+=item --encoding
+
+create the dump files in the specified character set encoding. By default, the dump is created in the database encoding.
 
 =back
 
@@ -1036,6 +1071,22 @@ path to a file containing a regex pattern of objects to INCLUDE. Note this will 
 
 path to a file containing a regex pattern of objects to EXCLUDE. Note this will match against all objects (tables, views, functions, etc)
 
+=item --no-owner
+
+do not add commands to dump files to set ownership of objects to match the original database
+
+=item --no-acl OR --no-privileges
+
+prevent dumping of access privileges (grant/revoke commands)
+
+=item --inserts
+
+dump data as INSERT commands (rather than COPY). Only useful with --getdata option
+        
+=item --column-inserts OR --attribute-inserts
+
+dump data as INSERT commands with explicit column names (INSERT INTO table (column, ...) VALUES ...). Only useful with --getdata option
+        
 =back
 
 =head2 svn
@@ -1091,7 +1142,7 @@ show this help page
 
 =head2 DEFAULTS
 
-The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST, $PGPASSFILE.
+The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST, $PGPASSFILE, $PGCLIENTENCODING.
 If not set and associated option is not passed, defaults will work the same as standard pg_dump.
         
 =over
