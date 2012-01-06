@@ -166,9 +166,12 @@ OPTIONS
   svn
 
     --svn
-        perform svn commit of ddlbase/hostname/dbname folder. NOTE: Svn username &
-        password (if needed) must be manually entered into the options section of the
-        source code.
+        perform svn commit of ddlbase/hostname/dbname folder.
+
+    --svn_userfile
+        file containing the svn username and password if needed. Make sure the user
+        running pg_extractor can read this file. File should contain a single line in the
+        format: --username svnuser --password svnpassword
 
     --svncmd
         location of svn command if it is not in the PATH.

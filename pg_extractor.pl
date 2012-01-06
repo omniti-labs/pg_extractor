@@ -98,7 +98,7 @@ exit;
 ############################
 
 
-# TODO Look through pg_restore options and add more here
+# TODO See if it's possible to dump objects that a user has any (maybe some?) permissions on.
 sub get_options {
     my %o = (
         'pgdump' => "pg_dump",
@@ -108,8 +108,6 @@ sub get_options {
         
         'svncmd' => 'svn',
         'commitmsg' => 'Pg ddl updates',
-        ##### MANUALLY SET SVN USERNAME/PASSWORD IF NEEDED ######
-        'svnuser' => '--username omniti --password ######',
     );
    pod2usage(-msg => "Syntax error", -exitval => 2, verbose => 99, -sections => "SYNOPSIS|OPTIONS|DEFAULTS" ) unless GetOptions(
         \%o,
@@ -161,6 +159,7 @@ sub get_options {
         'delete!',
         
         'svn!',
+        'svn_userfile=s',
         'svndel!',
         'svncmd=s',
         'commitmsg=s',
@@ -812,6 +811,14 @@ sub files_to_delete {
 sub svn_commit {
 
     my (@svn_add, @svn_ignored);
+    my $svnuser = " ";
+    if ($O->{'svn_userfile'}) {
+        open my $fh, "<", $O->{'svn_userfile'} or die_cleanup("Cannot open filter file for reading [$O->{'svn_userfile'}]: $!");
+        $svnuser = <$fh>;
+        chomp($svnuser);
+        print "svnuser: $svnuser\n";
+        close $fh;
+    }
     my $svn_stat_cmd = "$O->{'svncmd'} st $O->{'basedir'}";
     foreach my $s (`$svn_stat_cmd`) {
         if ($s !~ /\.sql$|pgdump\.pgr$/) {
@@ -858,8 +865,8 @@ sub svn_commit {
     }
     
     chdir $O->{'basedir'};
-    my $svn_commit_cmd = "$O->{svncmd} $O->{svnuser} -F $svn_commit_msg_file commit";
-    #print "svn commit command: $svn_commit_cmd\n" ;
+    my $svn_commit_cmd = "$O->{svncmd} $svnuser -F $svn_commit_msg_file commit";
+    print "svn commit command: $svn_commit_cmd\n" ;
     system $svn_commit_cmd;
     
 }
@@ -1097,7 +1104,11 @@ dump data as INSERT commands with explicit column names (INSERT INTO table (colu
 =item --svn
 
 perform svn commit of ddlbase/hostname/dbname folder. 
-NOTE: Svn username & password (if needed) must be manually entered into the options section of the source code.
+
+=item --svn_userfile
+
+file containing the svn username and password if needed. Make sure the user running pg_extractor can read this file.
+File should contain a single line in the format: --username svnuser --password svnpassword
 
 =item --svncmd
 
