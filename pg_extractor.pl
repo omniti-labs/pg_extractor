@@ -1124,7 +1124,7 @@ File containing the commit message to send to svn
 
 =item --svndel
 
-delete any files from the svn repository that are no longer part of the desired export. WARNING: This WILL delete ALL .sql files which don't match your desired output in the destination folders. --delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
+delete any files from the svn repository that are no longer part of the desired export. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. --delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
 
 =back
         
@@ -1135,7 +1135,7 @@ delete any files from the svn repository that are no longer part of the desired 
 =item --delete
 
 Use when running again on the same destination directory as previous runs so that objects deleted from the
-database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files which don't match your desired output in the destination folders. Not required when using the --svndel option.
+database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. Not required when using the --svndel option.
 
 =item --sqldump
 
