@@ -425,6 +425,8 @@ sub build_object_lists {
                 
             } elsif ($objsubtype eq "VIEW" || $objsubtype eq "TYPE") {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(\S+)\s(\S+)/;
+            } else {
+                next RESTORE_LABEL;
             }
         } else {
             next RESTORE_LABEL;
