@@ -19,6 +19,7 @@ use File::Temp;
 use Getopt::Long qw( :config no_ignore_case );
 use Sys::Hostname;
 use Pod::Usage;
+use Cwd;
 
 my ($excludeschema_dump, $includeschema_dump, $excludetable_dump, $includetable_dump) = ("","","","");
 my (@includeview, @excludeview);
@@ -84,6 +85,10 @@ if ($O->{'svn'}) {
     svn_commit();  
 }
 
+if ($O->{'git'} || $O->{'gitpush'}) {
+    git_commit();
+}
+
 # If svndel is set, it will take care of cleaning up the unwanted files when it removes them from svn
 if ($O->{'delete'} && !$O->{'svndel'}) {
     print "Deleting files for objects that are not part of desired export...\n" if !$O->{'quiet'};
@@ -104,14 +109,15 @@ sub get_options {
         'pgdump' => "pg_dump",
         'pgrestore' => "pg_restore",
         'pgdumpall' => "pg_dumpall",
-        'ddlbase' => ".",
+        'basedir' => ".",
         
         'svncmd' => 'svn',
+        'gitcmd' => 'git',
         'commitmsg' => 'Pg ddl updates',
     );
-   pod2usage(-msg => "Syntax error", -exitval => 2, verbose => 99, -sections => "SYNOPSIS|OPTIONS|DEFAULTS" ) unless GetOptions(
+   pod2usage(-msg => "Syntax error", -exitval => 2, verbose => 99, -sections => "SYNOPSIS|OPTIONS" ) unless GetOptions(
         \%o,
-        'ddlbase=s',
+        'basedir|ddlbase=s',
         'username|U=s',
         'host|h=s',
         'hostname=s',
@@ -162,6 +168,11 @@ sub get_options {
         'svn_userfile=s',
         'svndel!',
         'svncmd=s',
+        
+        'git!',
+        'gitdel!',
+        'gitpush!',
+        'gitcmd=s',
         'commitmsg=s',
         'commitmsgfn=s',
         
@@ -221,6 +232,7 @@ sub set_config {
     if ( (!$O->{'getdata'} || !$O->{'gettables'}) && ($O->{'inserts'} || $O->{'column-inserts'} ) ) {
         die "Must set --gettables or --getall if using --inserts or --column-inserts.\n";
     }
+    
 
     # TODO Redo option combinations to work like check_postgres (exclude then include)
     #      Until then only allowing one or the other
@@ -234,7 +246,15 @@ sub set_config {
     if ($O->{'svndel'} && !$O->{'svn'}) {
         die "Cannot specify svn deletion without --svn option.\n";
     } 
-     
+    
+    if ( $O->{'git'} && $O->{'gitpush'} ) {
+        die "Use either --git or --gitpush. --gitpush will do a local commit as well as a remote push";
+    }
+    
+    #TODO if gitdel is set and neither git nor gitpush is set, error out
+    
+    chdir $O->{'basedir'};
+    my $workingdir = cwd(); 
     my $real_server_name=hostname;
     my $customhost;
     if ($O->{'hostname'}) {
@@ -242,7 +262,7 @@ sub set_config {
     } else {
         chomp ($customhost = $real_server_name);
     }
-    $O->{'basedir'} = File::Spec->catdir($O->{ddlbase}, $customhost, $ENV{PGDATABASE});
+    $O->{'basedir'} = File::Spec->catdir($workingdir, $customhost, $ENV{PGDATABASE});
 
 
     if ($O->{'N'} || $O->{'N_file'} || $O->{'T'} || $O->{'T_file'} || 
@@ -809,6 +829,66 @@ sub files_to_delete {
     return @files;
 }
 
+sub git_commit {
+    my (@git_add, @git_ignored);
+    chdir $O->{'basedir'};
+    #TODO need to rework how the basedir is set. Then note in the help tha for git/svn that the base repository
+    # folder is /basedir/hostname, not /basedir/hostname/dbname (which is sort of how svn is working now)
+    chdir "../";
+    my $git_stat_cmd = "$O->{gitcmd} status --porcelain";
+    foreach my $s (`$git_stat_cmd`) {
+        if ($s !~ /\.sql$|.pgr$/) {
+            push @git_ignored, $s;
+            next;
+        }
+        if ($s =~ /^\?\?\s+(\S+)$/) {
+            push @git_add, $1;
+        }        
+    }
+    
+    foreach my $i (@git_ignored) {
+        print "ignored: $i" if !$O->{'quiet'};
+    }
+    
+    foreach my $a (@git_add) {
+        my $git_add_cmd = "$O->{gitcmd} add $a";
+        print "$git_add_cmd\n" if !$O->{'quiet'};
+        system $git_add_cmd;
+    }
+    
+    if ($O->{'gitdel'}) {
+        my @files_to_delete = files_to_delete();
+        if (scalar(@files_to_delete > 0)) {
+            foreach my $d (@files_to_delete) {
+                my $git_del_cmd = "$O->{gitcmd} rm $d";
+                print "$git_del_cmd\n" if !$O->{'quiet'};
+                system $git_del_cmd;
+            }
+        } else {
+            print "No files to delete from Git\n" if !$O->{'quiet'};
+        }
+    }
+    
+    
+    #Put commit message in external file to avoid issues with any special characters in it
+    my $git_commit_msg_file;
+    if ($O->{'commitmsgfn'}) {
+        $git_commit_msg_file = $O->{'commitmsgfn'};
+    } else {
+        $git_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX', 
+                                    SUFFIX => '.tmp',
+                                    DIR => $O->{'basedir'});
+        print $git_commit_msg_file $O->{'commitmsg'};
+    }
+    
+    my $git_commit_cmd = "$O->{gitcmd} commit -F $git_commit_msg_file";
+    print "$git_commit_cmd\n" if !$O->{'quiet'};
+    system $git_commit_cmd;
+    
+    if ($O->{'gitpush'}) {
+        system "$O->{gitcmd} push";
+    }
+}
 
 sub svn_commit {
 
@@ -818,12 +898,11 @@ sub svn_commit {
         open my $fh, "<", $O->{'svn_userfile'} or die_cleanup("Cannot open filter file for reading [$O->{'svn_userfile'}]: $!");
         $svnuser = <$fh>;
         chomp($svnuser);
-        print "svnuser: $svnuser\n";
         close $fh;
     }
     my $svn_stat_cmd = "$O->{'svncmd'} st $O->{'basedir'}";
     foreach my $s (`$svn_stat_cmd`) {
-        if ($s !~ /\.sql$|pgdump\.pgr$/) {
+        if ($s !~ /\.sql$|.pgr$/) {
             push @svn_ignored, $s;
             next;
         }
@@ -832,11 +911,11 @@ sub svn_commit {
         }
     }
     
-    foreach (@svn_ignored) {
-        print "ignored: $_\n";
+    foreach my $i (@svn_ignored) {
+        print "ignored: $i" if !$O->{'quiet'};
     }
-    foreach (@svn_add) {
-        my $svn_add_cmd = "$O->{svncmd} add --quiet $_\n";
+    foreach my $a (@svn_add) {
+        my $svn_add_cmd = "$O->{svncmd} add --quiet $a";
         print "$svn_add_cmd\n" if !$O->{'quiet'};
         system $svn_add_cmd;
     }
@@ -863,12 +942,12 @@ sub svn_commit {
         $svn_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX', 
                                     SUFFIX => '.tmp',
                                     DIR => $O->{'basedir'});
-        print $svn_commit_msg_file $O->{'commitmsg'};
+        print $svn_commit_msg_file $O->{'commitmsg'}  if !$O->{'quiet'};
     }
     
     chdir $O->{'basedir'};
     my $svn_commit_cmd = "$O->{svncmd} $svnuser -F $svn_commit_msg_file commit";
-    print "svn commit command: $svn_commit_cmd\n" ;
+    print "svn commit command: $svn_commit_cmd\n"  if !$O->{'quiet'}; ;
     system $svn_commit_cmd;
     
 }
@@ -905,6 +984,8 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
     a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
  - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
     Ex: table|name becomes table,7cname.sql
+ - VCS options (svn/git) assume a local repository has already been created. Recommend running pg_extractor once without any VCS options,
+    committing manually, then adding any VCS options.
  - Comments/Descriptions on any object should be included in the export file. If you see any missing, please contact the author
 
 =head1 OPTIONS
@@ -915,13 +996,13 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
 
 =item --host (-h)
 
-database server host or socket directory
+database server host or socket directory (Default: Result of running Sys::Hostname::hostname)
 
 =item --port (-p)
 
 database server port
 
-=item --username (-U) : 
+=item --username (-U) 
 
 database user name
         
@@ -929,7 +1010,7 @@ database user name
 
 full path to location of .pgpass file
         
-=item --dbname (-d) : 
+=item --dbname (-d)
 
 database name to connect to. Also used as directory name under --hostname
 
@@ -943,25 +1024,25 @@ create the dump files in the specified character set encoding. By default, the d
 
 =over
 
-=item --ddlbase           : 
+=item --basedir (ddlbase)
 
-base directory for ddl export
+base directory for ddl export. ddlbase is from old version that was schema only. kept for compatibility. (Default: directory pg_extractor is run from '.' )
 
-=item --hostname          : 
+=item --hostname
 
-hostname of the database server; used as directory name under --ddlbase
+hostname of the database server; used as directory name under --basedir
 
-=item --pgdump            : 
+=item --pgdump
 
-location of pg_dump executable
+location of pg_dump executable (Default: searches $PATH )
 
-=item --pgrestore         : 
+=item --pgrestore
 
-location of pg_restore executable
+location of pg_restore executable (Default: searches $PATH )
 
 =item --pgdumpall
 
-location of pg_dumpall executable (only required if --getroles or --getall options are used)
+location of pg_dumpall executable. only required if --getroles or --getall options are used (Default: searches $PATH )
         
 =back
 
@@ -1099,13 +1180,29 @@ dump data as INSERT commands with explicit column names (INSERT INTO table (colu
         
 =back
 
-=head2 svn
+=head2 Version Control
 
 =over
 
+=item --git
+
+perform git commit of basedir/hostname folder. This is a local commit only. See --gitpush for pushing to remote repositories
+
+=item --gitpush
+
+perform a local git commit of basedir/hostname folder as well as push to an already configured remote repository
+
+=item --gitcmd
+
+full path location of git command (Default: searches $PATH )
+
+=item --gitdel
+
+delete any files from the git repository that are no longer part of the desired export. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. --delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
+
 =item --svn
 
-perform svn commit of ddlbase/hostname/dbname folder. 
+perform svn commit of basedir/hostname/dbname folder. 
 
 =item --svn_userfile
 
@@ -1114,19 +1211,21 @@ File should contain a single line in the format: --username svnuser --password s
 
 =item --svncmd
 
-location of svn command if it is not in the PATH.
-
-=item --commitmsg
-
-Commit message to send to svn
-
-=item --commitmsgfn
-
-File containing the commit message to send to svn 
+full path location of svn command (Default: searches $PATH )
 
 =item --svndel
 
 delete any files from the svn repository that are no longer part of the desired export. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. --delete option is not required when this is set, since it will also delete files from disk if they were part of a previous export.
+
+=item --commitmsg
+
+Commit message to send to git or svn
+
+=item --commitmsgfn
+
+File containing the commit message to send to git or svn
+
+
 
 =back
         
@@ -1153,27 +1252,6 @@ Suppress all program output
 show this help page
  	
 =back 	    
-
-=head2 DEFAULTS
-
-The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST, $PGPASSFILE, $PGCLIENTENCODING.
-If not set and associated option is not passed, defaults will work the same as standard pg_dump.
-        
-=over
-
-=item --hostname          
-
-Result of running Sys::Hostname::hostname
-
-=item --ddlbase
-
-'.'  (directory pg_extractor is run from)
-
-=item --pgdump/pgrestore/pgdumpall    
-
-searches $PATH 
-
-=back
 
 =head1 EXAMPLES
 

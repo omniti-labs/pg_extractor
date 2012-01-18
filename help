@@ -16,6 +16,8 @@ SYNOPSIS
         a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
      - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
         Ex: table|name becomes table,7cname.sql
+     - VCS options (svn/git) assume a local repository has already been created. Recommend running pg_extractor once without any VCS options,
+        committing manually, then adding any VCS options.
      - Comments/Descriptions on any object should be included in the export file. If you see any missing, please contact the author
 
 OPTIONS
@@ -23,18 +25,19 @@ OPTIONS
   database connection
 
     --host (-h)
-        database server host or socket directory
+        database server host or socket directory (Default: Result of running
+        Sys::Hostname::hostname)
 
     --port (-p)
         database server port
 
-    --username (-U) :
+    --username (-U)
         database user name
 
     --pgpass
         full path to location of .pgpass file
 
-    --dbname (-d) :
+    --dbname (-d)
         database name to connect to. Also used as directory name under --hostname
 
     --encoding
@@ -43,21 +46,22 @@ OPTIONS
 
   directories
 
-    --ddlbase :
-        base directory for ddl export
+    --basedir (ddlbase)
+        base directory for ddl export. ddlbase is from old version that was schema only.
+        kept for compatibility. (Default: directory pg_extractor is run from '.' )
 
-    --hostname :
-        hostname of the database server; used as directory name under --ddlbase
+    --hostname
+        hostname of the database server; used as directory name under --basedir
 
-    --pgdump :
-        location of pg_dump executable
+    --pgdump
+        location of pg_dump executable (Default: searches $PATH )
 
-    --pgrestore :
-        location of pg_restore executable
+    --pgrestore
+        location of pg_restore executable (Default: searches $PATH )
 
     --pgdumpall
-        location of pg_dumpall executable (only required if --getroles or --getall options
-        are used)
+        location of pg_dumpall executable. only required if --getroles or --getall options
+        are used (Default: searches $PATH )
 
   filters
 
@@ -163,10 +167,28 @@ OPTIONS
         dump data as INSERT commands with explicit column names (INSERT INTO table
         (column, ...) VALUES ...). Only useful with --getdata option
 
-  svn
+  Version Control
+
+    --git
+        perform git commit of basedir/hostname folder. This is a local commit only. See
+        --gitpush for pushing to remote repositories
+
+    --gitpush
+        perform a local git commit of basedir/hostname folder as well as push to an
+        already configured remote repository
+
+    --gitcmd
+        full path location of git command (Default: searches $PATH )
+
+    --gitdel
+        delete any files from the git repository that are no longer part of the desired
+        export. WARNING: This WILL delete ALL .sql files in the destination folder(s)
+        which don't match your desired output. --delete option is not required when this
+        is set, since it will also delete files from disk if they were part of a previous
+        export.
 
     --svn
-        perform svn commit of ddlbase/hostname/dbname folder.
+        perform svn commit of basedir/hostname/dbname folder.
 
     --svn_userfile
         file containing the svn username and password if needed. Make sure the user
@@ -174,13 +196,7 @@ OPTIONS
         format: --username svnuser --password svnpassword
 
     --svncmd
-        location of svn command if it is not in the PATH.
-
-    --commitmsg
-        Commit message to send to svn
-
-    --commitmsgfn
-        File containing the commit message to send to svn
+        full path location of svn command (Default: searches $PATH )
 
     --svndel
         delete any files from the svn repository that are no longer part of the desired
@@ -188,6 +204,12 @@ OPTIONS
         which don't match your desired output. --delete option is not required when this
         is set, since it will also delete files from disk if they were part of a previous
         export.
+
+    --commitmsg
+        Commit message to send to git or svn
+
+    --commitmsgfn
+        File containing the commit message to send to git or svn
 
   other
 
@@ -208,21 +230,6 @@ OPTIONS
 
     --help (-?)
         show this help page
-
-  DEFAULTS
-
-    The following environment values are used: $PGDATABASE, $PGPORT, $PGUSER, $PGHOST,
-    $PGPASSFILE, $PGCLIENTENCODING. If not set and associated option is not passed,
-    defaults will work the same as standard pg_dump.
-
-    --hostname
-        Result of running Sys::Hostname::hostname
-
-    --ddlbase
-        '.' (directory pg_extractor is run from)
-
-    --pgdump/pgrestore/pgdumpall
-        searches $PATH
 
 EXAMPLES
 
