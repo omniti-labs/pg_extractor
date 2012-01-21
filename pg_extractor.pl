@@ -881,7 +881,7 @@ sub git_commit {
         print $git_commit_msg_file $O->{'commitmsg'};
     }
     
-    my $git_commit_cmd = "$O->{gitcmd} commit -F $git_commit_msg_file";
+    my $git_commit_cmd = "$O->{gitcmd} commit -a -F $git_commit_msg_file";
     print "$git_commit_cmd\n" if !$O->{'quiet'};
     system $git_commit_cmd;
     
