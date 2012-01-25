@@ -40,7 +40,7 @@ set_config();
 create_dirs();
 my $dmp_tmp_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
-                                    DIR => $O->{'basedir'});
+                                    DIR => ( File::Spec->tmpdir || $O->{'basedir'} ));
 
 if ($O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'}) {
     print "Creating temp dump...\n" if !$O->{'quiet'};
