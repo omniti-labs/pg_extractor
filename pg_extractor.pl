@@ -735,7 +735,17 @@ sub create_ddl_files {
 sub create_role_ddl {
     my $rolesdir = create_dirs('role');
     my $filepath = File::Spec->catfile($rolesdir, "roles_dump.sql");
-    my $dumprolecmd = "$O->{pgdumpall} --roles-only > $filepath";
+
+    open my $fh, '-|', "$O->{pgdumpall} --version" or die "Cannot read from $O->{pgdumpall} --version: $OS_ERROR";
+    my $version_info = <$fh>;
+    close $fh;
+
+    my @version_elements = $version_info =~ m{(\d+)}g;
+    my $version = sprintf '%03d%03d', @version_elements[0,1];
+
+    my $roles_option = $version < '008003' ? '--globals-only' : '--roles-only';
+
+    my $dumprolecmd = "$O->{pgdumpall} $roles_option > $filepath";
     system $dumprolecmd;
 }
 
