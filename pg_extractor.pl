@@ -4,7 +4,7 @@ use warnings;
 
 # PGExtractor, a script for doing advanced dump filtering and managing schema for PostgreSQL databases
 # Copyright 2011, OmniTI, Inc. (http://www.omniti.com/)
-# See complete license and copyright information at the bottom of this script  
+# See complete license and copyright information at the bottom of this script
 # For newer versions of this script, please see:
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
@@ -38,7 +38,7 @@ my $O = get_options();
 set_config();
 
 create_dirs();
-my $dmp_tmp_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX', 
+my $dmp_tmp_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
                                     DIR => $O->{'basedir'});
 
@@ -50,20 +50,20 @@ if ($O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'
     build_object_lists();
 
 
-    if (@tablelist) { 
+    if (@tablelist) {
         print "Creating table ddl files...\n" if !$O->{'quiet'};
-        create_ddl_files(\@tablelist, "table");    
+        create_ddl_files(\@tablelist, "table");
     }
 
-    if (@viewlist) { 
+    if (@viewlist) {
         print "Creating view ddl files...\n" if !$O->{'quiet'};
-        create_ddl_files(\@viewlist, "view");   
-    }  
+        create_ddl_files(\@viewlist, "view");
+    }
 
-    if (@functionlist) { 
+    if (@functionlist) {
         print "Creating function ddl files...\n" if !$O->{'quiet'};
-        create_ddl_files(\@functionlist, "function"); 
-    }    
+        create_ddl_files(\@functionlist, "function");
+    }
 
     if (@typelist) {
         print "Creating type ddl files...\n" if !$O->{'quiet'};
@@ -82,7 +82,7 @@ if ($O->{'sqldump'}) {
 }
 
 if ($O->{'svn'}) {
-    svn_commit();  
+    svn_commit();
 }
 
 if ($O->{'git'} || $O->{'gitpush'}) {
@@ -110,7 +110,7 @@ sub get_options {
         'pgrestore' => "pg_restore",
         'pgdumpall' => "pg_dumpall",
         'basedir' => ".",
-        
+
         'svncmd' => 'svn',
         'gitcmd' => 'git',
         'commitmsg' => 'Pg ddl updates',
@@ -163,29 +163,29 @@ sub get_options {
         'regex_incl_file=s',
         'regex_excl_file=s',
         'delete!',
-        
+
         'svn!',
         'svn_userfile=s',
         'svndel!',
         'svncmd=s',
-        
+
         'git!',
         'gitdel!',
         'gitpush!',
         'gitcmd=s',
         'commitmsg=s',
         'commitmsgfn=s',
-        
+
         'help|?',
-        
+
     );
     pod2usage(-exitval => 0, -verbose => 2, -noperldoc) if $o{'help'};
     return \%o;
 }
 
 sub set_config {
-    
-    if ($O->{'dbname'}) { 
+
+    if ($O->{'dbname'}) {
         $ENV{PGDATABASE} = $O->{'dbname'};
     }
     if ($O->{'port'}) {
@@ -226,13 +226,13 @@ sub set_config {
 
     if (!$O->{'getfuncs'} && ($O->{'P_file'} || $O->{'p_file'})) {
         die "Cannot include/exclude functions without setting option to export functions (--getfuncs or --getall).\n";
-    } 
-    
+    }
+
     #TODO for some reason not having getdata will not fire this exception.
     if ( (!$O->{'getdata'} || !$O->{'gettables'}) && ($O->{'inserts'} || $O->{'column-inserts'} ) ) {
         die "Must set --gettables or --getall if using --inserts or --column-inserts.\n";
     }
-    
+
 
     # TODO Redo option combinations to work like check_postgres (exclude then include)
     #      Until then only allowing one or the other
@@ -242,19 +242,19 @@ sub set_config {
             (($O->{'p_file'} && $O->{'P_file'})) ) {
         die "Cannot specify both include and exclude for the same object type (schema, table, view, function).\n";
     }
-    
+
     if ($O->{'svndel'} && !$O->{'svn'}) {
         die "Cannot specify svn deletion without --svn option.\n";
-    } 
-    
+    }
+
     if ( $O->{'git'} && $O->{'gitpush'} ) {
         die "Use either --git or --gitpush. --gitpush will do a local commit as well as a remote push";
     }
-    
+
     #TODO if gitdel is set and neither git nor gitpush is set, error out
-    
+
     chdir $O->{'basedir'};
-    my $workingdir = cwd(); 
+    my $workingdir = cwd();
     my $real_server_name=hostname;
     my $customhost;
     if ($O->{'hostname'}) {
@@ -265,22 +265,22 @@ sub set_config {
     $O->{'basedir'} = File::Spec->catdir($workingdir, $customhost, $ENV{PGDATABASE});
 
 
-    if ($O->{'N'} || $O->{'N_file'} || $O->{'T'} || $O->{'T_file'} || 
+    if ($O->{'N'} || $O->{'N_file'} || $O->{'T'} || $O->{'T_file'} ||
             $O->{'V'} || $O->{'V_file'} || $O->{'P_file'} || $O->{'O'} || $O->{'O_file'} || $O->{'regex_excl_file'}) {
         print "Building exclude lists...\n" if !$O->{'quiet'};
         build_excludes();
     }
-    if ($O->{'n'} || $O->{'n_file'} || $O->{'t'} || $O->{'t_file'} || 
+    if ($O->{'n'} || $O->{'n_file'} || $O->{'t'} || $O->{'t_file'} ||
             $O->{'v'} || $O->{'v_file'} || $O->{'p_file'} || $O->{'o'} || $O->{'o_file'} || $O->{'regex_incl_file'}) {
         print "Building include lists...\n" if !$O->{'quiet'};
         build_includes();
     }
-     
+
 }
 
 sub create_dirs {
     my $newdir = shift @_;
-    
+
     my $destdir = File::Spec->catdir($O->{'basedir'}, $newdir);
     if (!-e $destdir) {
        eval { mkpath($destdir) };
@@ -289,13 +289,13 @@ sub create_dirs {
         }
        print "created directory target [$destdir]\n" if !$O->{'quiet'};
     }
-    return $destdir;   
+    return $destdir;
 }
 
 sub create_temp_dump {
     my $pgdumpcmd = "$O->{pgdump} -Fc ";
-    
-    #if not getting data or don't need a separate copy of dump file, 
+
+    #if not getting data or don't need a separate copy of dump file,
     # no need to put more than just the schema in the temp dump
     if (!$O->{'getdata'} || !$O->{'sqldump'}) {
         $pgdumpcmd .= "-s ";
@@ -315,9 +315,9 @@ sub create_temp_dump {
     if ($O->{'no-acl'}) {
         $pgdumpcmd .= " --no-acl ";
     }
-    
-    print "$pgdumpcmd > $dmp_tmp_file\n" if !$O->{'quiet'};  
-    system "$pgdumpcmd > $dmp_tmp_file"; 
+
+    print "$pgdumpcmd > $dmp_tmp_file\n" if !$O->{'quiet'};
+    system "$pgdumpcmd > $dmp_tmp_file";
 }
 
 sub build_filter_list {
@@ -334,7 +334,7 @@ sub build_filter_list {
         }
     } else {
         if (defined($dump_option)) {
-            $dumplist = "-". $dump_option . $list; 
+            $dumplist = "-". $dump_option . $list;
             return $dumplist;
         } else {
             push @list, $list;
@@ -367,16 +367,16 @@ sub built_filter_list_file {
 }
 
 sub build_excludes {
-    
+
     $excludeschema_dump = build_filter_list($O->{'N'}, "N") if (defined($O->{'N'}));
     $excludetable_dump = build_filter_list($O->{'T'}, "T") if (defined($O->{'T'}));
     @excludeview = build_filter_list($O->{'V'}) if (defined($O->{'V'}));
     @excludeowner = build_filter_list($O->{'O'}) if (defined($O->{'O'}));
-        
+
     $excludeschema_dump = built_filter_list_file($O->{'N_file'}, "N") if ($O->{'N_file'});
     $excludetable_dump = built_filter_list_file($O->{'T_file'}, "T") if ($O->{'T_file'});
-    
-    @excludeview = built_filter_list_file($O->{'V_file'}) if ($O->{'V_file'});    
+
+    @excludeview = built_filter_list_file($O->{'V_file'}) if ($O->{'V_file'});
     @excludefunction = built_filter_list_file($O->{'P_file'}) if ($O->{'P_file'});
     @excludeowner = built_filter_list_file($O->{'O_file'}) if ($O->{'O_file'});
     @regex_excl = built_filter_list_file($O->{'regex_excl_file'}) if ($O->{'regex_excl_file'});
@@ -385,13 +385,13 @@ sub build_excludes {
 sub build_includes {
 
     $includeschema_dump = build_filter_list($O->{'n'}, "n") if (defined($O->{'n'}));
-    $includetable_dump = build_filter_list($O->{'t'}, "t") if (defined($O->{'t'}));  
-    @includeview = build_filter_list($O->{'v'}) if (defined($O->{'v'}));  
-    @includeowner = build_filter_list($O->{'o'}) if (defined($O->{'o'}));  
-        
+    $includetable_dump = build_filter_list($O->{'t'}, "t") if (defined($O->{'t'}));
+    @includeview = build_filter_list($O->{'v'}) if (defined($O->{'v'}));
+    @includeowner = build_filter_list($O->{'o'}) if (defined($O->{'o'}));
+
     $includeschema_dump = built_filter_list_file($O->{'n_file'}, "n") if ($O->{'n_file'});
     $includetable_dump = built_filter_list_file($O->{'t_file'}, "t") if ($O->{'t_file'});
-    
+
     @includeview = built_filter_list_file($O->{'v_file'}) if ($O->{'v_file'});
     @includefunction = built_filter_list_file($O->{'p_file'}) if ($O->{'p_file'});
     @includeowner = built_filter_list_file($O->{'o_file'}) if ($O->{'o_file'});
@@ -401,8 +401,8 @@ sub build_includes {
 sub build_object_lists {
     my $restorecmd = "$O->{pgrestore} -l $dmp_tmp_file";
     my ($objid, $objtype, $objschema, $objsubtype, $objname, $objowner, $key, $value);
-    
-    
+
+
     RESTORE_LABEL: foreach (`$restorecmd`) {
         chomp;
         if (/^;/) {
@@ -423,26 +423,26 @@ sub build_object_lists {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(.*\))\s(\S+)/;
             } else {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/;
-            } 
-            next RESTORE_LABEL if $objtype eq "-";       
+            }
+            next RESTORE_LABEL if $objtype eq "-";
         } elsif ($typetest =~ /^FUNCTION|AGGREGATE/) {
             ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(.*\))\s(\S+)/;
         } elsif ($typetest =~ /^COMMENT/) {
-            
+
             ($objsubtype) = /\d+;\s\d+\s\d+\s\S+\s\S+\s(\S+)/;
-            
+
             if ($objsubtype eq "FUNCTION" || $objsubtype eq "AGGREGATE") {
-                
+
                 # pg_restore -l adds the variable name into the COMMENT function signature if variable names are used in the parameter list,
                 # but it doesn't put them in the signature of the function itself.
                 # If the function definition contains the variable names to be used, then it's nearly impossible to split out
-                # argument types from the variable name so it can match against the actual function definition. 
+                # argument types from the variable name so it can match against the actual function definition.
                 # See about talking to Postgres devs about why the variable name is being included only in COMMENTS.
-                
+
                 # Maybe make a separate comment file for functions?
-                
+
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(.*\))\s(\S+)/;
-                
+
             } elsif ($objsubtype eq "VIEW" || $objsubtype eq "TYPE") {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(\S+)\s(\S+)/;
             } else {
@@ -457,25 +457,25 @@ sub build_object_lists {
                 next RESTORE_LABEL if ($o eq $objowner);
             }
         }
-        
+
         if (@includeowner) {
             foreach my $o (@includeowner) {
                 next RESTORE_LABEL if ($o ne $objowner);
             }
         }
-        
+
         if (@regex_excl) {
             foreach my $r (@regex_excl) {
                 next RESTORE_LABEL if ($objname =~ /$r/);
             }
         }
-        
+
         if (@regex_incl) {
             foreach my $r (@regex_incl) {
                 next RESTORE_LABEL unless ($objname =~ /$r/);
             }
         }
-       
+
         if ($O->{'gettables'} && $objtype eq "TABLE") {
             push @tablelist, {
                 "id" => $objid,
@@ -536,7 +536,7 @@ sub build_object_lists {
                     }
                 }
             }
-            
+
             if (@includefunction) {
                 my $found = 0;
                 foreach my $i (@includefunction) {
@@ -566,7 +566,7 @@ sub build_object_lists {
                 "owner" => $objowner,
             };
         }
-        
+
         if ($O->{'gettypes'} && $objtype eq "TYPE") {
             push @typelist, {
                 "id" => $objid,
@@ -576,9 +576,9 @@ sub build_object_lists {
                 "owner" => $objowner,
             };
         }
-        
+
         if ($objtype eq "COMMENT") {
-            
+
             push @commentlist, {
                 "id" => $objid,
                 "type" => $objtype,
@@ -588,7 +588,7 @@ sub build_object_lists {
                 "owner" => $objowner,
             };
         }
-        
+
         if ($objtype eq "ACL") {
             push @acl_list, {
                 "id" => $objid,
@@ -597,8 +597,8 @@ sub build_object_lists {
                 "name" => $objname,
                 "owner" => $objowner,
             };
-        }   
-    } # end restorecmd if    
+        }
+    } # end restorecmd if
 } # end build_object_lists
 
 
@@ -607,24 +607,24 @@ sub create_ddl_files {
     my $destdir = $_[1];
     my ($restorecmd, $pgdumpcmd, $fqfn, $funcname, $format);
     my $fulldestdir = create_dirs($destdir);
-    my $tmp_ddl_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXXX', 
+    my $tmp_ddl_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXXX',
                                         SUFFIX => '.tmp',
                                         DIR => $O->{'basedir'});
     my $list_file_contents = "";
     my $offset = 0;
-    if ($O->{'Fc'}) { 
-        $format = '-Fc'; 
+    if ($O->{'Fc'}) {
+        $format = '-Fc';
     } else {
         $format = '-Fp';
     }
     if (!$O->{'getdata'}) {
         $format .= " -s";
     }
-    
+
     foreach my $t (@objlist) {
 
         print "restore item: $t->{id} $t->{type} $t->{schema} $t->{name} $t->{owner}\n" if !$O->{'quiet'};
-        
+
         if ($t->{'name'} =~ /\(.*\)/) {
             $funcname = substr($t->{'name'}, 0, index($t->{'name'}, "\("));
             my $schemafile = $t->{'schema'};
@@ -640,9 +640,9 @@ sub create_ddl_files {
             $namefile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
             $fqfn = File::Spec->catfile($fulldestdir, "$schemafile.$namefile");
         }
-        
+
         $list_file_contents = "$t->{id} $t->{type} $t->{schema} $t->{name} $t->{owner}\n";
-        
+
         if ($t->{'type'} eq "TABLE") {
             #TODO see if there's a better way to handle this. Seems sketchy but works for now
             # extra quotes to keep the shell from eating the doublequotes & allow for mixed case or special chars
@@ -663,7 +663,7 @@ sub create_ddl_files {
             system $pgdumpcmd;
         } else {
             # TODO this is a mess but, amazingly, it works. try and tidy up if possible.
-            # put all functions with same basename in the same output file 
+            # put all functions with same basename in the same output file
             # along with each function's ACL & COMMENT following just after it (see note in COMMENT parsing section above).
             if ($t->{'type'} eq "FUNCTION" || $t->{'type'} eq "AGGREGATE") {
                 my @dupe_objlist = @objlist;
@@ -696,13 +696,13 @@ sub create_ddl_files {
                             if ($c->{'name'} eq $d->{'name'}) {
                                 $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                             }
-                        }                        
+                        }
                         # if overload found, remove from main @objlist so it doesn't get output again.
                         splice(@objlist,$offset,1)
                     }
                 }
             } else {
-                
+
                 # add to current file output if this object has an ACL
                 foreach my $a (@acl_list) {
                     if ($a->{'name'} eq $t->{'name'}) {
@@ -713,7 +713,7 @@ sub create_ddl_files {
                     if ($c->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                     }
-                }       
+                }
             }
             open LIST, ">", $tmp_ddl_file or die_cleanup("could not create required temp file [$tmp_ddl_file]: $!\n");
             print "$list_file_contents\n" if !$O->{'quiet'};
@@ -759,8 +759,8 @@ sub delete_files {
 sub files_to_delete {
     my %file_list;
     my $dirh;
-    
-    # If directory exists, check it to see if the files it contains match what is contained in @objectlist previously created 
+
+    # If directory exists, check it to see if the files it contains match what is contained in @objectlist previously created
     if ( ($dirh = DirHandle->new($O->{'basedir'}."/table")) ) {
         while (defined(my $d = $dirh->read())) {
             if ($d =~ /,/) {
@@ -787,7 +787,7 @@ sub files_to_delete {
             delete($file_list{"function/$f->{schema}.$funcname.sql"});
         }
     }
-    
+
     if ( ($dirh = DirHandle->new($O->{'basedir'}."/view")) ) {
         while (defined(my $d = $dirh->read())) {
             if ($d =~ /,/) {
@@ -799,7 +799,7 @@ sub files_to_delete {
         	delete($file_list{"view/$f->{schema}.$f->{name}.sql"});
         }
     }
-    
+
     if ( ($dirh = DirHandle->new($O->{'basedir'}."/type")) ) {
         while (defined(my $d = $dirh->read())) {
             if ($d =~ /,/) {
@@ -811,19 +811,19 @@ sub files_to_delete {
         	delete($file_list{"type/$f->{schema}.$f->{name}.sql"});
         }
     }
-    
+
     if (!defined($O->{'sqldump'}) && ($dirh = DirHandle->new($O->{'basedir'}."/pg_dump")) ) {
         while (defined(my $d = $dirh->read())) {
         	$file_list{"pg_dump/$d"} = 1 if (-f "$O->{basedir}/pg_dump/$d" && $d =~ m/pgdump\.pgr$/o);
         }
-    } 
-    
+    }
+
     if (!defined($O->{'getroles'}) && ($dirh = DirHandle->new($O->{'basedir'}."/role")) ) {
         while (defined(my $d = $dirh->read())) {
         	$file_list{"role/$d"} = 1 if (-f "$O->{basedir}/role/$d" && $d =~ m/\.sql$/o);
         }
-    } 
-    
+    }
+
     # The files that are left in the %file_list are those for which the object that they represent has been removed or is no longer desired.
     my @files = map { "$O->{basedir}/$_" } keys(%file_list);
     return @files;
@@ -843,19 +843,19 @@ sub git_commit {
         }
         if ($s =~ /^\?\?\s+(\S+)$/) {
             push @git_add, $1;
-        }        
+        }
     }
-    
+
     foreach my $i (@git_ignored) {
         print "ignored: $i" if !$O->{'quiet'};
     }
-    
+
     foreach my $a (@git_add) {
         my $git_add_cmd = "$O->{gitcmd} add $a";
         print "$git_add_cmd\n" if !$O->{'quiet'};
         system $git_add_cmd;
     }
-    
+
     if ($O->{'gitdel'}) {
         my @files_to_delete = files_to_delete();
         if (scalar(@files_to_delete > 0)) {
@@ -868,23 +868,23 @@ sub git_commit {
             print "No files to delete from Git\n" if !$O->{'quiet'};
         }
     }
-    
-    
+
+
     #Put commit message in external file to avoid issues with any special characters in it
     my $git_commit_msg_file;
     if ($O->{'commitmsgfn'}) {
         $git_commit_msg_file = $O->{'commitmsgfn'};
     } else {
-        $git_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX', 
+        $git_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
                                     DIR => $O->{'basedir'});
         print $git_commit_msg_file $O->{'commitmsg'};
     }
-    
+
     my $git_commit_cmd = "$O->{gitcmd} commit -a -F $git_commit_msg_file";
     print "$git_commit_cmd\n" if !$O->{'quiet'};
     system $git_commit_cmd;
-    
+
     if ($O->{'gitpush'}) {
         system "$O->{gitcmd} push";
     }
@@ -910,7 +910,7 @@ sub svn_commit {
             push @svn_add, $1;
         }
     }
-    
+
     foreach my $i (@svn_ignored) {
         print "ignored: $i" if !$O->{'quiet'};
     }
@@ -919,7 +919,7 @@ sub svn_commit {
         print "$svn_add_cmd\n" if !$O->{'quiet'};
         system $svn_add_cmd;
     }
-    
+
     #TODO add commands to cleanup empty folders
     if ($O->{'svndel'}) {
         my @files_to_delete = files_to_delete();
@@ -933,23 +933,23 @@ sub svn_commit {
             print "No files to delete from SVN\n" if !$O->{'quiet'};
         }
     }
-    
+
     #Put commit message in external file to avoid issues with any special characters in it
     my $svn_commit_msg_file;
     if ($O->{'commitmsgfn'}) {
         $svn_commit_msg_file = $O->{'commitmsgfn'};
     } else {
-        $svn_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX', 
+        $svn_commit_msg_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
                                     DIR => $O->{'basedir'});
         print $svn_commit_msg_file $O->{'commitmsg'}  if !$O->{'quiet'};
     }
-    
+
     chdir $O->{'basedir'};
     my $svn_commit_cmd = "$O->{svncmd} $svnuser -F $svn_commit_msg_file commit";
     print "svn commit command: $svn_commit_cmd\n"  if !$O->{'quiet'}; ;
     system $svn_commit_cmd;
-    
+
 }
 
 sub die_cleanup {
@@ -976,11 +976,11 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
 /path/to/pg_extractor.pl [options]
 
 =head2 NOTES
- 
+
  - Requires using a trusted user or a .pgpass file. No option to send password.
- - For all options that use an external file list, separate each item in the file by a newline. 
-    pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename" 
- - If no schema name is given in an filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating 
+ - For all options that use an external file list, separate each item in the file by a newline.
+    pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename"
+ - If no schema name is given in an filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating
     a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
  - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
     Ex: table|name becomes table,7cname.sql
@@ -1002,14 +1002,14 @@ database server host or socket directory (Default: Result of running Sys::Hostna
 
 database server port
 
-=item --username (-U) 
+=item --username (-U)
 
 database user name
-        
+
 =item --pgpass
 
 full path to location of .pgpass file
-        
+
 =item --dbname (-d)
 
 database name to connect to. Also used as directory name under --hostname
@@ -1043,7 +1043,7 @@ location of pg_restore executable (Default: searches $PATH )
 =item --pgdumpall
 
 location of pg_dumpall executable. only required if --getroles or --getall options are used (Default: searches $PATH )
-        
+
 =back
 
 =head2 filters
@@ -1051,12 +1051,12 @@ location of pg_dumpall executable. only required if --getroles or --getall optio
 =over
 
 =item --gettables
- 
+
 export table ddl. Each file includes table's indexes, constraints, sequences, comments, rules and triggers
 
 =item --getviews
- 
-export view ddl 
+
+export view ddl
 
 =item --getfuncs
 
@@ -1082,7 +1082,7 @@ include data in the output files. Note that format will be plaintext (-Fp) unles
 
 output in pg_dump custom format (useful with --getdata). Otherwise, default is always -Fp
 
-=item --N 
+=item --N
 
 csv list of schemas to EXCLUDE
 
@@ -1090,7 +1090,7 @@ csv list of schemas to EXCLUDE
 
 path to a file listing schemas to EXCLUDE.
 
-=item --n 
+=item --n
 
 csv list of schemas to INCLUDE
 
@@ -1098,7 +1098,7 @@ csv list of schemas to INCLUDE
 
 path to a file listing schemas to INCLUDE.
 
-=item --T 
+=item --T
 
 csv list of tables to EXCLUDE. Schema name may be required (same for all table options)
 
@@ -1106,7 +1106,7 @@ csv list of tables to EXCLUDE. Schema name may be required (same for all table o
 
 path to file listing tables to EXCLUDE.
 
-=item --t 
+=item --t
 
 csv list of tables to INCLUDE. Only these tables will be exported
 
@@ -1114,21 +1114,21 @@ csv list of tables to INCLUDE. Only these tables will be exported
 
 path to file listing tables to INCLUDE.
 
-=item --V 
+=item --V
 
-csv list of views to EXCLUDE. 
+csv list of views to EXCLUDE.
 
 =item --V_file
 
 path to file listing views to EXCLUDE.
 
-=item --v 
+=item --v
 
 csv list of views to INCLUDE. Only these views will be exported
 
 =item --v_file
 
-path to file listing views to INCLUDE. 
+path to file listing views to INCLUDE.
 
 =item --P_file
 
@@ -1173,11 +1173,11 @@ prevent dumping of access privileges (grant/revoke commands)
 =item --inserts
 
 dump data as INSERT commands (rather than COPY). Only useful with --getdata option
-        
+
 =item --column-inserts OR --attribute-inserts
 
 dump data as INSERT commands with explicit column names (INSERT INTO table (column, ...) VALUES ...). Only useful with --getdata option
-        
+
 =back
 
 =head2 Version Control
@@ -1202,7 +1202,7 @@ delete any files from the git repository that are no longer part of the desired 
 
 =item --svn
 
-perform svn commit of basedir/hostname/dbname folder. 
+perform svn commit of basedir/hostname/dbname folder.
 
 =item --svn_userfile
 
@@ -1228,7 +1228,7 @@ File containing the commit message to send to git or svn
 
 
 =back
-        
+
 =head2 other
 
 =over
@@ -1250,8 +1250,8 @@ Suppress all program output
 =item --help (-?)
 
 show this help page
- 	
-=back 	    
+
+=back
 
 =head1 EXAMPLES
 
@@ -1259,7 +1259,7 @@ show this help page
 
 =item Basic minimum usage. This will extract all tables, functions/aggregates, views, types & roles. It uses the directory that pg_extractor is run from as the base directory (objects will be found in ./hostname/mydb/) and will also produce a permanent copy of the pg_dump file that the objects were extracted from. It expects the locations of the postgres binaries to be in the $PATH.
 
-perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump 
+perl pg_extractor.pl -U postgres --dbname=mydb --getall --sqldump
 
 =item Extract only functions from the "keith" schema
 
@@ -1279,7 +1279,7 @@ perl pg_extractor.pl -U postgres --dbname=mydb --getfuncs -p_file=/home/postgres
 
 perl pg_extractor.pl -U postgres --dbname=mydb --gettables -Fc --t_file=/home/postgres/tbl_incl --getdata
 
-=item Example of excluding partitions that have the pattern tablename_pYYYY_MM or fairly similar. Binaries are also not in the $PATH and EXCLUDES several schemas. part_exclude file contains: _p_?(20|19)\d\d(_?\d+)*$ . 
+=item Example of excluding partitions that have the pattern tablename_pYYYY_MM or fairly similar. Binaries are also not in the $PATH and EXCLUDES several schemas. part_exclude file contains: _p_?(20|19)\d\d(_?\d+)*$ .
 
 perl pg_extractor.pl -U postgres --dbname=mydb --pgdump=/opt/pgsql/bin/pg_dump --pgrestore=/opt/pgsql/bin/pg_restore --pgdumpall=/opt/pgsql/bin/pg_dumpall --getall --regex_excl_file=/home/postgres/part_exclude --N=schema1,schema2,schema3,schema4
 
@@ -1288,13 +1288,13 @@ perl pg_extractor.pl -U postgres --dbname=mydb --pgdump=/opt/pgsql/bin/pg_dump -
 perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn --commitmsg="Weekly svn commit of postgres schema" --svndel
 
 =back
-        
+
 =head1 AUTHOR
 
     Keith Fiske
     OmniTI, Inc - http://www.omniti.com
     Download source from https://github.com/omniti-labs/pg_extractor
-    
+
 =head1 LICENSE AND COPYRIGHT
 
 PGExtractor is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
