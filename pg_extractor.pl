@@ -670,12 +670,12 @@ sub create_ddl_files {
                 my $dupefunc;
                 # add to current file output if first found object has an ACL or comment
                 foreach my $a (@acl_list) {
-                    if ($a->{'name'} eq $t->{'name'}) {
+                    if ($a->{'schema'} eq $t->{'schema'} && $a->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
                     }
                 }
                 foreach my $c (@commentlist) {
-                    if ($c->{'name'} eq $t->{'name'}) {
+                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                     }
                 }
@@ -705,12 +705,12 @@ sub create_ddl_files {
 
                 # add to current file output if this object has an ACL
                 foreach my $a (@acl_list) {
-                    if ($a->{'name'} eq $t->{'name'}) {
+                    if ($a->{'schema'} eq $t->{'schema'} && $a->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
                     }
                 }
                 foreach my $c (@commentlist) {
-                    if ($c->{'name'} eq $t->{'name'}) {
+                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                     }
                 }
