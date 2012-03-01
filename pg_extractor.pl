@@ -437,7 +437,7 @@ sub build_object_lists {
                 # but it doesn't put them in the signature of the function itself.
                 # If the function definition contains the variable names to be used, then it's nearly impossible to split out
                 # argument types from the variable name so it can match against the actual function definition.
-                # See about talking to Postgres devs about why the variable name is being included only in COMMENTS.
+                # Reported to postgres devs as bug #6428.
 
                 # Maybe make a separate comment file for functions?
 
@@ -683,7 +683,7 @@ sub create_ddl_files {
                 foreach my $d (@dupe_objlist) {
                     $dupefunc = substr($d->{'name'}, 0, index($d->{'name'}, "\("));
                     # if there is another function with the same name in the same schema, but different signature, as this one ($t)...
-                    if ($funcname eq $dupefunc && $t->{'schema'} eq $t->{'schema'} && $t->{'name'} ne $d->{'name'}) {
+                    if ($funcname eq $dupefunc && $t->{'schema'} eq $d->{'schema'} && $t->{'name'} ne $d->{'name'}) {
                         # ...add overload of function ($d) to current file output
                         $list_file_contents .= "$d->{id} $d->{type} $d->{schema} $d->{name} $d->{owner}\n";
                         # add overloaded function's ACL if it exists
@@ -764,7 +764,6 @@ sub delete_files {
 }
 
 
-# TODO account for objects with special characters in name
 # Get a list of the files on disk to remove from disk. Kept as separate function so SVN/Git can use to delete files from VCS as well.
 sub files_to_delete {
     my %file_list;
