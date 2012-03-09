@@ -10,9 +10,9 @@ SYNOPSIS
   NOTES
 
      - Requires using a trusted user or a .pgpass file. No option to send password.
-     - For all options that use an external file list, separate each item in the file by a newline. 
-        pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename" 
-     - If no schema name is given in an filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating 
+     - For all options that use an external file list, separate each item in the file by a newline.
+        pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename"
+     - If no schema name is given in a filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating
         a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
      - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
         Ex: table|name becomes table,7cname.sql
@@ -219,6 +219,12 @@ OPTIONS
         their old files deleted. WARNING: This WILL delete ALL .sql files in the
         destination folder(s) which don't match your desired output. Not required when
         using the --svndel option.
+
+    --clean
+        Adds DROP commands to the SQL output of all objects. Allows the same behavior as
+        OR REPLACE since ACLs are included with all objects. WARNING: For overloaded
+        function/aggregates, this adds drop commands for all versions to the single output
+        file.
 
     --sqldump
         Also generate a pg_dump file. Will only contain schemas and tables designated by

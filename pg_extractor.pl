@@ -996,7 +996,7 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
  - Requires using a trusted user or a .pgpass file. No option to send password.
  - For all options that use an external file list, separate each item in the file by a newline.
     pg_extractor.pl will accept a list of objects output from a psql generated file using "\t \o filename"
- - If no schema name is given in an filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating
+ - If no schema name is given in a filter for tables, it will assume public schema (same as pg_dump). For other objects, not designating
     a schema will match across all schemas included in given filters. So, recommended to give full schema.object name for all objects.
  - If a special character is used in an object name, it will be replaced with a comma followed by its hexcode
     Ex: table|name becomes table,7cname.sql
