@@ -137,6 +137,7 @@ sub get_options {
         'getdata!',
         'Fc!',
         'sqldump!',
+        'clean!',
         'N=s',
         'N_file=s',
         'n=s',
@@ -659,6 +660,9 @@ sub create_ddl_files {
             if ($O->{'no-acl'}) {
                 $pgdumpcmd .= " --no-acl ";
             }
+            if ($O->{'clean'}) {
+                $pgdumpcmd .= " --clean ";
+            }
             $pgdumpcmd .= " > $fqfn.sql";
             system $pgdumpcmd;
         } else {
@@ -721,6 +725,9 @@ sub create_ddl_files {
             $restorecmd = "$O->{pgrestore} -L $tmp_ddl_file -f $fqfn.sql ";
             if ($O->{'no-owner'}) {
                 $restorecmd .= " --no-owner ";
+            }
+            if ($O->{'clean'}) {
+                $restorecmd .= " --clean ";
             }
             $restorecmd .= " $dmp_tmp_file";
             ##print "final restore command: $restorecmd\n";
@@ -1246,6 +1253,10 @@ File containing the commit message to send to git or svn
 
 Use when running again on the same destination directory as previous runs so that objects deleted from the
 database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. Not required when using the --svndel option.
+
+=item --clean
+
+Adds DROP commands to the SQL output of all objects. Allows the same behavior as OR REPLACE since ACLs are included with all objects. WARNING: For overloaded function/aggregates, this adds drop commands for all versions to the single output file.
 
 =item --sqldump
 
