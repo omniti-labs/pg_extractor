@@ -216,6 +216,10 @@ sub set_config {
             die("NOTICE: No output options set. Please set one or more of the following: --gettables, --getviews, --getprocs, --gettypes, --getroles. Or --getall for all. Use --help to show all options\n");
         }
     }
+    
+    if ($O->{'getdata'} && !$O->{'gettables'}) {
+        die "Cannot dump data without dumping tables. Use --gettables or --getall.\n";
+    }
 
     if (!$O->{'gettables'} && ($O->{'T'} || $O->{'T_file'} || $O->{'t'} || $O->{'t_file'})) {
         die "Cannot include/exclude tables without setting option to export tables (--gettables or --getall).\n";
@@ -229,11 +233,9 @@ sub set_config {
         die "Cannot include/exclude functions without setting option to export functions (--getfuncs or --getall).\n";
     }
 
-    #TODO for some reason not having getdata will not fire this exception.
-    if ( (!$O->{'getdata'} || !$O->{'gettables'}) && ($O->{'inserts'} || $O->{'column-inserts'} ) ) {
-        die "Must set --gettables or --getall if using --inserts or --column-inserts.\n";
+    if ( (!$O->{'gettables'} && ($O->{'inserts'} || $O->{'column-inserts'})) || (!$O->{'getdata'} && ($O->{'inserts'} || $O->{'column-inserts'})) ) {
+        die "Must set --gettables or --getall and be dumping data with --getdata if using --inserts or --column-inserts.\n";
     }
-
 
     # TODO Redo option combinations to work like check_postgres (exclude then include)
     #      Until then only allowing one or the other
@@ -247,12 +249,15 @@ sub set_config {
     if ($O->{'svndel'} && !$O->{'svn'}) {
         die "Cannot specify svn deletion without --svn option.\n";
     }
+    
+    if ( ($O->{'gitdel'} && !$O->{'git'}) && ($O->{'gitdel'} && !$O->{'gitpush'}) ) 
+    {
+        die "Cannot specify git deletion without --git or --gitpush option.\n";
+    }
 
     if ( $O->{'git'} && $O->{'gitpush'} ) {
         die "Use either --git or --gitpush. --gitpush will do a local commit as well as a remote push";
     }
-
-    #TODO if gitdel is set and neither git nor gitpush is set, error out
 
     chdir $O->{'basedir'};
     my $workingdir = cwd();
@@ -439,8 +444,6 @@ sub build_object_lists {
                 # If the function definition contains the variable names to be used, then it's nearly impossible to split out
                 # argument types from the variable name so it can match against the actual function definition.
                 # Reported to postgres devs as bug #6428.
-
-                # Maybe make a separate comment file for functions?
 
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(.*\))\s(\S+)/;
 
