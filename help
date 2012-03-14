@@ -65,6 +65,9 @@ OPTIONS
 
   filters
 
+    --getschemata
+        export schema ddl
+
     --gettables
         export table ddl. Each file includes table's indexes, constraints, sequences,
         comments, rules and triggers
