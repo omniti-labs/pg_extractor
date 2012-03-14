@@ -26,7 +26,7 @@ my (@includeview, @excludeview);
 my (@includefunction, @excludefunction);
 my (@includeowner, @excludeowner);
 my (@regex_incl, @regex_excl);
-my (@tablelist, @viewlist, @functionlist, @typelist, @acl_list, @commentlist);
+my (@schemalist, @tablelist, @viewlist, @functionlist, @typelist, @acl_list, @commentlist);
 
 
 ################ Run main program subroutines
@@ -42,13 +42,17 @@ my $dmp_tmp_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXX',
                                     SUFFIX => '.tmp',
                                     DIR => ( File::Spec->tmpdir || $O->{'basedir'} ));
 
-if ($O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'}) {
+if ($O->{'getschemata'} || $O->{'gettables'} || $O->{'getfuncs'} || $O->{'getviews'} || $O->{'gettypes'}) {
     print "Creating temp dump...\n" if !$O->{'quiet'};
     create_temp_dump();
 
     print "Building object lists...\n" if !$O->{'quiet'};
     build_object_lists();
 
+    if (@schemalist) {
+        print "Creating schema ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@schemalist, "schema");
+    }
 
     if (@tablelist) {
         print "Creating table ddl files...\n" if !$O->{'quiet'};
@@ -128,6 +132,7 @@ sub get_options {
         'pgrestore=s',
         'pgdumpall=s',
         'quiet!',
+        'getschemata!',
         'gettables!',
         'getviews!',
         'getfuncs!',
@@ -205,8 +210,9 @@ sub set_config {
         $ENV{PGCLIENTENCODING} = $O->{'encoding'};
     }
 
-    if (!$O->{'gettables'} && !$O->{'getfuncs'} && !$O->{'getviews'} && !$O->{'gettypes'} && !$O->{'getroles'}) {
+    if (!$O->{'getschemata'} && !$O->{'gettables'} && !$O->{'getfuncs'} && !$O->{'getviews'} && !$O->{'gettypes'} && !$O->{'getroles'}) {
         if ($O->{'getall'}) {
+            $O->{'getschemata'} = 1;
             $O->{'gettables'} = 1;
             $O->{'getfuncs'} = 1;
             $O->{'getviews'} = 1;
@@ -416,7 +422,7 @@ sub build_object_lists {
         }
         #print "restorecmd result: $_ \n";
         my ($typetest) = /\d+;\s\d+\s\d+\s+(.*)/;
-        if ($typetest =~ /^TABLE|VIEW|TYPE/) {
+        if ($typetest =~ /^TABLE|VIEW|TYPE|SCHEMA/) {
             # avoid output error when table data is being exported
             if ($typetest =~ /^TABLE/) {
                 if ( /\d+;\s\d+\s\d+\sTABLE\sDATA\s\S+\s\S+\s\S+/ ) {
@@ -478,6 +484,16 @@ sub build_object_lists {
             foreach my $r (@regex_incl) {
                 next RESTORE_LABEL unless ($objname =~ /$r/);
             }
+        }
+
+        if ($O->{'getschemata'} && $objtype eq "SCHEMA") {
+            push @schemalist, {
+                "id" => $objid,
+                "type" => $objtype,
+                "schema" => $objschema,
+                "name" => $objname,
+                "owner" => $objowner,
+            };
         }
 
         if ($O->{'gettables'} && $objtype eq "TABLE") {
@@ -629,7 +645,12 @@ sub create_ddl_files {
 
         print "restore item: $t->{id} $t->{type} $t->{schema} $t->{name} $t->{owner}\n" if !$O->{'quiet'};
 
-        if ($t->{'name'} =~ /\(.*\)/) {
+        if ($t->{'type'} eq "SCHEMA") {
+            my $namefile = $t->{'name'};
+            # account for special characters in object name
+            $namefile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
+            $fqfn = File::Spec->catfile($fulldestdir, "$namefile");
+        }elsif ($t->{'name'} =~ /\(.*\)/) {
             $funcname = substr($t->{'name'}, 0, index($t->{'name'}, "\("));
             my $schemafile = $t->{'schema'};
             # account for special characters in object name
@@ -1068,6 +1089,10 @@ location of pg_dumpall executable. only required if --getroles or --getall optio
 =head2 filters
 
 =over
+
+=item --getschemata
+
+export schema ddl
 
 =item --gettables
 
