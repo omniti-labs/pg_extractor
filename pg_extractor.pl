@@ -250,7 +250,7 @@ sub set_config {
         die "Cannot specify svn deletion without --svn option.\n";
     }
     
-    if ( ($O->{'gitdel'} && !$O->{'git'}) && ($O->{'gitdel'} && !$O->{'gitpush'}) ) 
+    if ( ($O->{'gitdel'} && !$O->{'git'} && !$O->{'gitpush'}) ) 
     {
         die "Cannot specify git deletion without --git or --gitpush option.\n";
     }
