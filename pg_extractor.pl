@@ -421,8 +421,8 @@ sub build_object_lists {
             next;
         }
         #print "restorecmd result: $_ \n";
-        my ($typetest) = /\d+;\s\d+\s\d+\s+(.*)/;
-        if ($typetest =~ /^TABLE|VIEW|TYPE|SCHEMA/) {
+        my ($typetest) = /\d+;\s\d+\s\d+\s+(\S+)/;
+        if ($typetest =~ /^(TABLE|VIEW|TYPE|SCHEMA)/) {
             # avoid output error when table data is being exported
             if ($typetest =~ /^TABLE/) {
                 if ( /\d+;\s\d+\s\d+\sTABLE\sDATA\s\S+\s\S+\s\S+/ ) {
@@ -437,7 +437,7 @@ sub build_object_lists {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/;
             }
             next RESTORE_LABEL if $objtype eq "-";
-        } elsif ($typetest =~ /^FUNCTION|AGGREGATE/) {
+        } elsif ($typetest =~ /^(FUNCTION|AGGREGATE)/) {
             ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(.*\))\s(\S+)/;
         } elsif ($typetest =~ /^COMMENT/) {
 
