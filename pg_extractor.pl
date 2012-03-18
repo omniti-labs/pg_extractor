@@ -445,12 +445,6 @@ sub build_object_lists {
 
             if ($objsubtype eq "FUNCTION" || $objsubtype eq "AGGREGATE") {
 
-                # pg_restore -l adds the variable name into the COMMENT function signature if variable names are used in the parameter list,
-                # but it doesn't put them in the signature of the function itself.
-                # If the function definition contains the variable names to be used, then it's nearly impossible to split out
-                # argument types from the variable name so it can match against the actual function definition.
-                # Reported to postgres devs as bug #6428.
-
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(.*\))\s(\S+)/;
 
             } elsif ($objsubtype eq "VIEW" || $objsubtype eq "TYPE") {
@@ -621,6 +615,15 @@ sub build_object_lists {
     } # end restorecmd if
 } # end build_object_lists
 
+sub gen_fn_regex {
+    # generate a regex from function name to also match function with named parameters
+    my $fnregex = shift;
+    $fnregex =~ s/(\(|\)|\[|\]|\.)/\\$1/g;
+    $fnregex =~ s/^([^\(]+\()/$1\(\\S\+\\s\)\?/;
+    $fnregex =~ s/(,\s)/$1\(\\S\+\\s\)\?/g;
+    $fnregex = '^' . $fnregex . '$';
+    return $fnregex;
+}
 
 sub create_ddl_files {
     my (@objlist) = (@{$_[0]});
@@ -695,15 +698,19 @@ sub create_ddl_files {
             # along with each function's ACL & COMMENT following just after it (see note in COMMENT parsing section above).
             if ($t->{'type'} eq "FUNCTION" || $t->{'type'} eq "AGGREGATE") {
                 my @dupe_objlist = @objlist;
-                my $dupefunc;
+                my ($dupefunc, $fnregex, $dupregex);
                 # add to current file output if first found object has an ACL or comment
                 foreach my $a (@acl_list) {
                     if ($a->{'schema'} eq $t->{'schema'} && $a->{'name'} eq $t->{'name'}) {
                         $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
                     }
                 }
+
+                # get regex from function name to allow matching with COMMENT if using named paramters
+                $fnregex = gen_fn_regex($t->{'name'});
+
                 foreach my $c (@commentlist) {
-                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'name'} eq $t->{'name'}) {
+                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'name'} =~ m/$fnregex/) {
                         $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                     }
                 }
@@ -720,8 +727,11 @@ sub create_ddl_files {
                                 $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
                             }
                         }
+
+                        # get regex from function name to allow matching with COMMENT if using named paramters
+                        $dupregex = gen_fn_regex($d->{'name'});
                         foreach my $c (@commentlist) {
-                            if ($c->{'name'} eq $d->{'name'}) {
+                            if ($c->{'name'} =~ m/$dupregex/) {
                                 $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                             }
                         }
