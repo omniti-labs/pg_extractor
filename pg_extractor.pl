@@ -26,7 +26,7 @@ my (@includeview, @excludeview);
 my (@includefunction, @excludefunction);
 my (@includeowner, @excludeowner);
 my (@regex_incl, @regex_excl);
-my (@schemalist, @tablelist, @viewlist, @functionlist, @typelist, @acl_list, @commentlist);
+my (@schemalist, @tablelist, @viewlist, @functionlist, @aggregatelist, @typelist, @acl_list, @commentlist);
 
 
 ################ Run main program subroutines
@@ -67,6 +67,11 @@ if ($O->{'getschemata'} || $O->{'gettables'} || $O->{'getfuncs'} || $O->{'getvie
     if (@functionlist) {
         print "Creating function ddl files...\n" if !$O->{'quiet'};
         create_ddl_files(\@functionlist, "function");
+    }
+
+    if (@aggregatelist) {
+        print "Creating aggregate ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@aggregatelist, "aggregate");
     }
 
     if (@typelist) {
@@ -578,13 +583,24 @@ sub build_object_lists {
                     next RESTORE_LABEL;
                 }
             }
-            push @functionlist, {
-                "id" => $objid,
-                "type" => $objtype,
-                "schema" => $objschema,
-                "name" => $objname,
-                "owner" => $objowner,
-            };
+
+            if ($objtype eq "FUNCTION") {
+                push @functionlist, {
+                    "id" => $objid,
+                    "type" => $objtype,
+                    "schema" => $objschema,
+                    "name" => $objname,
+                    "owner" => $objowner,
+                };
+            } elsif ($objtype eq "AGGREGATE") {
+                push @aggregatelist, {
+                    "id" => $objid,
+                    "type" => $objtype,
+                    "schema" => $objschema,
+                    "name" => $objname,
+                    "owner" => $objowner,
+                };
+            }
         }
 
         if ($O->{'gettypes'} && $objtype eq "TYPE") {
