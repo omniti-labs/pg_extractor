@@ -77,7 +77,8 @@ OPTIONS
 
     --getfuncs
         export function and/or aggregate ddl. Overloaded functions will all be in the same
-        base filename
+        base filename. Custom aggregates are put in a separate folder than regular
+        functions.
 
     --gettypes
         export custom types.

@@ -417,7 +417,7 @@ sub build_includes {
 
 sub build_object_lists {
     my $restorecmd = "$O->{pgrestore} -l $dmp_tmp_file";
-    my ($objid, $objtype, $objschema, $objsubtype, $objname, $objowner, $key, $value);
+    my ($objid, $objtype, $objschema, $objsubtype, $objname, $fnname, $objowner, $key, $value);
 
 
     RESTORE_LABEL: foreach (`$restorecmd`) {
@@ -436,28 +436,30 @@ sub build_object_lists {
             }
             ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/;
         } elsif ($typetest =~ /^ACL/) {
+            $fnname = '';
             if (/\(.*\)/) {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(.*\))\s(\S+)/;
+                $fnname = substr($objname, 0, index($objname, "\("));
             } else {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/;
             }
             next RESTORE_LABEL if $objtype eq "-";
         } elsif ($typetest =~ /^(FUNCTION|AGGREGATE)/) {
             ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(.*\))\s(\S+)/;
+            $fnname = substr($objname, 0, index($objname, "\("));
         } elsif ($typetest =~ /^COMMENT/) {
-
+            $fnname = '';
             ($objsubtype) = /\d+;\s\d+\s\d+\s\S+\s\S+\s(\S+)/;
 
             if ($objsubtype eq "FUNCTION" || $objsubtype eq "AGGREGATE") {
 
                 # pg_restore -l adds the variable name into the COMMENT function signature if variable names are used in the parameter list,
-                # but it doesn't put them in the signature of the function itself.
-                # If the function definition contains the variable names to be used, then it's nearly impossible to split out
-                # argument types from the variable name so it can match against the actual function definition.
-                # Reported to postgres devs as bug #6428.
+                # but it doesn't put them in the signature of the function itself. Patch from jobywalker has workaround for pg_extractor to handle this.
+                # Reported to postgres devs as bug #6428 to fix the pg_restore output to be consistent.
 
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(.*\))\s(\S+)/;
-
+                $fnname = substr($objname, 0, index($objname, "\("));
+                
             } elsif ($objsubtype eq "VIEW" || $objsubtype eq "TYPE") {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(\S+)\s(\S+)/;
             } else {
@@ -589,6 +591,7 @@ sub build_object_lists {
                     "type" => $objtype,
                     "schema" => $objschema,
                     "name" => $objname,
+                    "fnname" => $fnname,
                     "owner" => $objowner,
                 };
             } elsif ($objtype eq "AGGREGATE") {
@@ -597,6 +600,7 @@ sub build_object_lists {
                     "type" => $objtype,
                     "schema" => $objschema,
                     "name" => $objname,
+                    "fnname" => $fnname,
                     "owner" => $objowner,
                 };
             }
@@ -620,6 +624,7 @@ sub build_object_lists {
                 "schema" => $objschema,
                 "subtype" => $objsubtype,
                 "name" => $objname,
+                "fnname" => $fnname,
                 "owner" => $objowner,
             };
         }
@@ -630,6 +635,7 @@ sub build_object_lists {
                 "type" => $objtype,
                 "schema" => $objschema,
                 "name" => $objname,
+                "fnname" => $fnname,
                 "owner" => $objowner,
             };
         }
@@ -666,7 +672,7 @@ sub create_ddl_files {
             $namefile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
             $fqfn = File::Spec->catfile($fulldestdir, "$namefile");
         }elsif ($t->{'name'} =~ /\(.*\)/) {
-            $funcname = substr($t->{'name'}, 0, index($t->{'name'}, "\("));
+            $funcname = $t->{'fnname'};
             my $schemafile = $t->{'schema'};
             # account for special characters in object name
             $schemafile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
@@ -710,42 +716,30 @@ sub create_ddl_files {
             # along with each function's ACL & COMMENT following just after it (see note in COMMENT parsing section above).
             if ($t->{'type'} eq "FUNCTION" || $t->{'type'} eq "AGGREGATE") {
                 my @dupe_objlist = @objlist;
-                my $dupefunc;
-                # add to current file output if first found object has an ACL or comment
+                my $dupeoffset = 0;
+                # loop through dupe of objlist to find overloads
+                foreach my $d (@dupe_objlist) {
+                    # if there is another function with the same schema and name but different signature include it
+                    if ($t->{'schema'} eq $d->{'schema'} && $t->{'fnname'} eq $d->{'fnname'} && $t->{'name'} ne $d->{'name'}) {
+                        $list_file_contents .= "$d->{id} $d->{type} $d->{schema} $d->{name} $d->{owner}\n";
+                        # if overload found, remove from main @objlist so it doesn't get output again.
+                        splice(@objlist,$dupeoffset,1)
+                    }
+                    $dupeoffset++;
+                }
+                # add to current file output ACLs and Comments based on function name (to catch acls and comments for 
+                # functions with the same signature)
                 foreach my $a (@acl_list) {
-                    if ($a->{'schema'} eq $t->{'schema'} && $a->{'name'} eq $t->{'name'}) {
+                    if ($a->{'schema'} eq $t->{'schema'} && $a->{'fnname'} eq $t->{'fnname'}) {
                         $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
                     }
                 }
                 foreach my $c (@commentlist) {
-                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'name'} eq $t->{'name'}) {
+                    if ($c->{'schema'} eq $t->{'schema'} && $c->{'fnname'} eq $t->{'fnname'}) {
                         $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
                     }
                 }
-                # loop through dupe of objlist to find overloads
-                foreach my $d (@dupe_objlist) {
-                    $dupefunc = substr($d->{'name'}, 0, index($d->{'name'}, "\("));
-                    # if there is another function with the same name in the same schema, but different signature, as this one ($t)...
-                    if ($funcname eq $dupefunc && $t->{'schema'} eq $d->{'schema'} && $t->{'name'} ne $d->{'name'}) {
-                        # ...add overload of function ($d) to current file output
-                        $list_file_contents .= "$d->{id} $d->{type} $d->{schema} $d->{name} $d->{owner}\n";
-                        # add overloaded function's ACL if it exists
-                        foreach my $a (@acl_list) {
-                            if ($a->{'name'} eq $d->{'name'}) {
-                                $list_file_contents .= "$a->{id} $a->{type} $a->{schema} $a->{name} $a->{owner}\n";
-                            }
-                        }
-                        foreach my $c (@commentlist) {
-                            if ($c->{'name'} eq $d->{'name'}) {
-                                $list_file_contents .= "$c->{id} $c->{type} $c->{schema} $c->{subtype} $c->{name} $c->{owner}\n";
-                            }
-                        }
-                        # if overload found, remove from main @objlist so it doesn't get output again.
-                        splice(@objlist,$offset,1)
-                    }
-                }
             } else {
-
                 # add to current file output if this object has an ACL
                 foreach my $a (@acl_list) {
                     if ($a->{'schema'} eq $t->{'schema'} && $a->{'name'} eq $t->{'name'}) {
@@ -1119,7 +1113,7 @@ export view ddl
 
 =item --getfuncs
 
-export function and/or aggregate ddl. Overloaded functions will all be in the same base filename
+export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions.
 
 =item --gettypes
 
