@@ -10,12 +10,12 @@ use warnings;
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
 
-use DirHandle;
 use English qw( -no_match_vars);
 use File::Copy;
 use File::Path 'mkpath';
 use File::Spec;
 use File::Temp;
+use File::Find;
 use Getopt::Long qw( :config no_ignore_case );
 use Sys::Hostname;
 use Pod::Usage;
@@ -27,6 +27,7 @@ my (@includefunction, @excludefunction);
 my (@includeowner, @excludeowner);
 my (@regex_incl, @regex_excl);
 my (@schemalist, @tablelist, @viewlist, @functionlist, @aggregatelist, @typelist, @acl_list, @commentlist);
+my (%createdfiles);
 
 
 ################ Run main program subroutines
@@ -119,6 +120,8 @@ sub get_options {
         'pgrestore' => "pg_restore",
         'pgdumpall' => "pg_dumpall",
         'basedir' => ".",
+        'sqldumpdir' => "pg_dump",
+        'rolesdir' => 'role',
 
         'svncmd' => 'svn',
         'gitcmd' => 'git',
@@ -133,6 +136,9 @@ sub get_options {
         'port|p=i',
         'pgpass=s',
         'dbname|d=s',
+        'schemasubdir!',
+        'sqldumpdir=s',
+        'rolesdir=s',
         'pgdump=s',
         'pgrestore=s',
         'pgdumpall=s',
@@ -296,9 +302,9 @@ sub set_config {
 }
 
 sub create_dirs {
-    my $newdir = shift @_;
+    unshift (@_ , $O->{basedir});
+    my $destdir = File::Spec->catdir(@_);
 
-    my $destdir = File::Spec->catdir($O->{'basedir'}, $newdir);
     if (!-e $destdir) {
        eval { mkpath($destdir) };
        if ($@) {
@@ -646,8 +652,10 @@ sub build_object_lists {
 sub create_ddl_files {
     my (@objlist) = (@{$_[0]});
     my $destdir = $_[1];
-    my ($restorecmd, $pgdumpcmd, $fqfn, $funcname, $format);
-    my $fulldestdir = create_dirs($destdir);
+    my ($restorecmd, $pgdumpcmd, $fqfn, $funcname, $format, $fulldestdir);
+    if (!$O->{'schemasubdir'}) {
+        $fulldestdir = create_dirs($destdir);
+    }
     my $tmp_ddl_file = File::Temp->new( TEMPLATE => 'pg_extractor_XXXXXXXX',
                                         SUFFIX => '.tmp',
                                         DIR => $O->{'basedir'});
@@ -670,6 +678,9 @@ sub create_ddl_files {
             my $namefile = $t->{'name'};
             # account for special characters in object name
             $namefile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
+            if ($O->{'schemasubdir'}) {
+                $fulldestdir = create_dirs($namefile, $destdir);
+            }
             $fqfn = File::Spec->catfile($fulldestdir, "$namefile");
         }elsif ($t->{'name'} =~ /\(.*\)/) {
             $funcname = $t->{'fnname'};
@@ -677,6 +688,9 @@ sub create_ddl_files {
             # account for special characters in object name
             $schemafile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
             $funcname =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
+            if ($O->{'schemasubdir'}) {
+                $fulldestdir = create_dirs($schemafile, $destdir);
+            }
             $fqfn = File::Spec->catfile($fulldestdir, "$schemafile.$funcname");
         } else {
             my $schemafile = $t->{'schema'};
@@ -684,6 +698,9 @@ sub create_ddl_files {
             # account for special characters in object name
             $schemafile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
             $namefile =~ s/(\W)/sprintf(",%02x", ord $1)/ge;
+            if ($O->{'schemasubdir'}) {
+                $fulldestdir = create_dirs($schemafile, $destdir);
+            }
             $fqfn = File::Spec->catfile($fulldestdir, "$schemafile.$namefile");
         }
 
@@ -768,12 +785,13 @@ sub create_ddl_files {
             close LIST;
         }
         chmod 0664, $fqfn;
+        $createdfiles{"$fqfn.sql"} = 1;
         $offset++;
     }  # end @objlist foreach
 }
 
 sub create_role_ddl {
-    my $rolesdir = create_dirs('role');
+    my $rolesdir = create_dirs($O->{'rolesdir'});
     my $filepath = File::Spec->catfile($rolesdir, "roles_dump.sql");
 
     open my $fh, '-|', "$O->{pgdumpall} --version" or die "Cannot read from $O->{pgdumpall} --version: $OS_ERROR";
@@ -787,12 +805,14 @@ sub create_role_ddl {
 
     my $dumprolecmd = "$O->{pgdumpall} $roles_option > $filepath";
     system $dumprolecmd;
+    $createdfiles{$filepath} = 1;
 }
 
 sub copy_sql_dump {
-    my $dump_folder = create_dirs("pg_dump");
+    my $dump_folder = create_dirs($O->{'sqldumpdir'});
     my $pgdumpfile = File::Spec->catfile($dump_folder, "$ENV{PGDATABASE}_pgdump.pgr");
     copy ($dmp_tmp_file->filename, $pgdumpfile);
+    $createdfiles{$pgdumpfile} = 1;
 }
 
 #TODO add commands to cleanup empty folders
@@ -806,76 +826,18 @@ sub delete_files {
 
 # Get a list of the files on disk to remove from disk. Kept as separate function so SVN/Git can use to delete files from VCS as well.
 sub files_to_delete {
-    my %file_list;
-    my $dirh;
-
-    # If directory exists, check it to see if the files it contains match what is contained in @objectlist previously created
-    if ( ($dirh = DirHandle->new($O->{'basedir'}."/table")) ) {
-        while (defined(my $d = $dirh->read())) {
-            if ($d =~ /,/) {
-                # convert special characters back to ASCII character
-                $d =~ s/,(\w\w)/chr(hex($1))/ge;
+    my @files_to_delete;
+    
+    find( 
+        sub { 
+            my $f = $File::Find::name;
+            if (-f $f && $f =~ /\.sql$|.pgr$/ && !exists $createdfiles{$f}) {
+                push(@files_to_delete, $f);
             }
-            $file_list{"table/$d"} = 1 if (-f "$O->{basedir}/table/$d" && $d =~ m/\.sql$/o);
-        }
-        # Go through the list of table found in the database and remove the corresponding entry from the file_list.
-        foreach my $f (@tablelist) {
-            delete($file_list{"table/$f->{schema}.$f->{name}.sql"});
-        }
-    }
-
-    if ( ($dirh = DirHandle->new($O->{'basedir'}."/function")) ) {
-        while (defined(my $d = $dirh->read())) {
-            if ($d =~ /,/) {
-                $d =~ s/,(\w\w)/chr(hex($1))/ge;
-            }
-            $file_list{"function/$d"} = 1 if (-f "$O->{basedir}/function/$d" && $d =~ m/\.sql$/o);
-        }
-        foreach my $f (@functionlist) {
-            my $funcname = substr($f->{'name'}, 0, index($f->{'name'}, "\("));
-            delete($file_list{"function/$f->{schema}.$funcname.sql"});
-        }
-    }
-
-    if ( ($dirh = DirHandle->new($O->{'basedir'}."/view")) ) {
-        while (defined(my $d = $dirh->read())) {
-            if ($d =~ /,/) {
-                $d =~ s/,(\w\w)/chr(hex($1))/ge;
-            }
-        	$file_list{"view/$d"} = 1 if (-f "$O->{basedir}/view/$d" && $d =~ m/\.sql$/o);
-        }
-        foreach my $f (@viewlist) {
-        	delete($file_list{"view/$f->{schema}.$f->{name}.sql"});
-        }
-    }
-
-    if ( ($dirh = DirHandle->new($O->{'basedir'}."/type")) ) {
-        while (defined(my $d = $dirh->read())) {
-            if ($d =~ /,/) {
-                $d =~ s/,(\w\w)/chr(hex($1))/ge;
-            }
-        	$file_list{"type/$d"} = 1 if (-f "$O->{basedir}/type/$d" && $d =~ m/\.sql$/o);
-        }
-        foreach my $f (@typelist) {
-        	delete($file_list{"type/$f->{schema}.$f->{name}.sql"});
-        }
-    }
-
-    if (!defined($O->{'sqldump'}) && ($dirh = DirHandle->new($O->{'basedir'}."/pg_dump")) ) {
-        while (defined(my $d = $dirh->read())) {
-        	$file_list{"pg_dump/$d"} = 1 if (-f "$O->{basedir}/pg_dump/$d" && $d =~ m/pgdump\.pgr$/o);
-        }
-    }
-
-    if (!defined($O->{'getroles'}) && ($dirh = DirHandle->new($O->{'basedir'}."/role")) ) {
-        while (defined(my $d = $dirh->read())) {
-        	$file_list{"role/$d"} = 1 if (-f "$O->{basedir}/role/$d" && $d =~ m/\.sql$/o);
-        }
-    }
-
-    # The files that are left in the %file_list are those for which the object that they represent has been removed or is no longer desired.
-    my @files = map { "$O->{basedir}/$_" } keys(%file_list);
-    return @files;
+        }, $O->{'basedir'}
+    );
+    
+    return @files_to_delete;
 }
 
 sub git_commit {
@@ -1080,6 +1042,14 @@ base directory for ddl export. ddlbase is from old version that was schema only.
 =item --hostname
 
 hostname of the database server; used as directory name under --basedir
+
+=item --rolesdir
+
+name of the directory under database name to place the export file with role data.  no impact without the --getroles or --getall option.
+
+=item --schemasubdir
+
+breakout each schema's content into subdirectories under the database directory (hostname/databasedir/schema)
 
 =item --pgdump
 
@@ -1299,6 +1269,10 @@ Adds DROP commands to the SQL output of all objects. Allows the same behavior as
 
 Also generate a pg_dump file. Will only contain schemas and tables designated by original options.
 Note that other filtered items will NOT be filtered out of the dump file.
+
+=item --sqldumpdir
+
+name of the directory under the database name directory to place the pg_dump file.  has no impact without the --sqldump option
 
 =item --quiet
 

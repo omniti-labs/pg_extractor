@@ -53,6 +53,14 @@ OPTIONS
     --hostname
         hostname of the database server; used as directory name under --basedir
 
+    --rolesdir
+        name of the directory under database name to place the export file with role data.
+        no impact without the --getroles or --getall option.
+
+    --schemasubdir
+        breakout each schema's content into subdirectories under the database directory
+        (hostname/databasedir/schema)
+
     --pgdump
         location of pg_dump executable (Default: searches $PATH )
 
@@ -234,6 +242,10 @@ OPTIONS
         Also generate a pg_dump file. Will only contain schemas and tables designated by
         original options. Note that other filtered items will NOT be filtered out of the
         dump file.
+
+    --sqldumpdir
+        name of the directory under the database name directory to place the pg_dump file.
+        has no impact without the --sqldump option
 
     --quiet
         Suppress all program output
