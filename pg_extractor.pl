@@ -742,7 +742,9 @@ sub create_ddl_files {
                         # if overload found, remove from main @objlist so it doesn't get output again.
                         splice(@objlist,$dupeoffset,1)
                     }
-                    $dupeoffset++;
+                    else {
+                        $dupeoffset++;
+                    }
                 }
                 # add to current file output ACLs and Comments based on function name (to catch acls and comments for 
                 # functions with the same signature)
