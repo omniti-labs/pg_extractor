@@ -91,6 +91,11 @@ if ($O->{'sqldump'}) {
     copy_sql_dump();
 }
 
+if ($O->{'orreplace'}) {
+    print "Adding OR REPLACE clause...\n" if !$O->{'quiet'};
+    or_replace()
+}
+
 if ($O->{'svn'}) {
     svn_commit();
 }
@@ -136,6 +141,7 @@ sub get_options {
         'port|p=i',
         'pgpass=s',
         'dbname|d=s',
+        'dbdir=s',
         'schemasubdir!',
         'sqldumpdir=s',
         'rolesdir=s',
@@ -192,6 +198,8 @@ sub get_options {
         'gitcmd=s',
         'commitmsg=s',
         'commitmsgfn=s',
+
+        'orreplace!',
 
         'help|?',
 
@@ -280,12 +288,18 @@ sub set_config {
     my $workingdir = cwd();
     my $real_server_name=hostname;
     my $customhost;
+    my $customdb;
     if ($O->{'hostname'}) {
         $customhost = $O->{'hostname'};
     } else {
         chomp ($customhost = $real_server_name);
     }
-    $O->{'basedir'} = File::Spec->catdir($workingdir, $customhost, $ENV{PGDATABASE});
+    if ($O->{'dbdir'}) {
+        $customdb = $O->{'dbdir'};
+    } else {
+        $customdb = $ENV{PGDATABASE}
+    }
+    $O->{'basedir'} = File::Spec->catdir($workingdir, $customhost, $customdb);
 
 
     if ($O->{'N'} || $O->{'N_file'} || $O->{'T'} || $O->{'T_file'} ||
@@ -465,7 +479,6 @@ sub build_object_lists {
 
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(.*\))\s(\S+)/;
                 $fnname = substr($objname, 0, index($objname, "\("));
-                
             } elsif ($objsubtype eq "VIEW" || $objsubtype eq "TYPE") {
                 ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s\S+\s(\S+)\s(\S+)/;
             } else {
@@ -906,29 +919,32 @@ sub git_commit {
 sub svn_commit {
 
     my (@svn_add, @svn_ignored);
-    my $svnuser = " ";
-    if ($O->{'svn_userfile'}) {
-        open my $fh, "<", $O->{'svn_userfile'} or die_cleanup("Cannot open filter file for reading [$O->{'svn_userfile'}]: $!");
-        $svnuser = <$fh>;
-        chomp($svnuser);
-        close $fh;
-    }
+
     my $svn_stat_cmd = "$O->{'svncmd'} st $O->{'basedir'}";
-    foreach my $s (`$svn_stat_cmd`) {
-        if ($s !~ /\.sql$|.pgr$/) {
-            push @svn_ignored, $s;
-            next;
-        }
-        if ($s =~ /^\?\s+(\S+)$/) {
-            push @svn_add, $1;
+    for my $filename (`$svn_stat_cmd`) {
+
+        chomp $filename;
+        
+
+        # add any new .sql or .pgr files along with any new directories.
+
+        if ($filename =~ /^\?/ ) {
+            print "found new file\n";
+            $filename =~ s/^\?\s+(\S+)$/$1/;
+            if ($filename =~ /\.sql$|.pgr$/ or -d $filename)  {
+                push (@svn_add,$filename)
+            } else  {
+                push (@svn_ignored,$filename)
+            }
         }
     }
 
     foreach my $i (@svn_ignored) {
-        print "ignored: $i" if !$O->{'quiet'};
+        print "ignored: $i\n" if !$O->{'quiet'};
     }
     foreach my $a (@svn_add) {
-        my $svn_add_cmd = "$O->{svncmd} add --quiet $a";
+        my $svn_add_cmd = $O->{'svncmd'} . ' add ' . $a;
+        $svn_add_cmd .= ' -q' if $O->{'quiet'};
         print "$svn_add_cmd\n" if !$O->{'quiet'};
         system $svn_add_cmd;
     }
@@ -938,9 +954,13 @@ sub svn_commit {
         my @files_to_delete = files_to_delete();
         if (scalar(@files_to_delete > 0)) {
             foreach my $d (@files_to_delete) {
-                my $svn_del_cmd = "$O->{svncmd} del $d";
+                my $svn_del_cmd = $O->{'svncmd'} . ' del ' . $d;
+                $svn_del_cmd .= ' -q' if $O->{'quiet'};
                 print "$svn_del_cmd\n" if !$O->{'quiet'};
                 system $svn_del_cmd;
+                if ( $? == -1 ) {
+                    print "command '$svn_del_cmd' failed: $!\n";
+                }
             }
         } else {
             print "No files to delete from SVN\n" if !$O->{'quiet'};
@@ -958,11 +978,41 @@ sub svn_commit {
         print $svn_commit_msg_file $O->{'commitmsg'}  if !$O->{'quiet'};
     }
 
+    my $svnuser;
+    if ($O->{'svn_userfile'}) {
+        open my $fh, "<", $O->{'svn_userfile'} or die_cleanup("Cannot open filter file for reading [$O->{'svn_userfile'}]: $!");
+        $svnuser = <$fh>;
+        chomp($svnuser);
+        close $fh;
+    }
     chdir $O->{'basedir'};
-    my $svn_commit_cmd = "$O->{svncmd} $svnuser -F $svn_commit_msg_file commit";
-    print "svn commit command: $svn_commit_cmd\n"  if !$O->{'quiet'}; ;
+    my $svn_commit_cmd = ($O->{'svncmd'});
+    $svn_commit_cmd .= " $svnuser" if defined $svnuser;
+    $svn_commit_cmd .= " -q" if $O->{'quiet'};
+    $svn_commit_cmd .= " -F $svn_commit_msg_file commit";
+    print "$svn_commit_cmd\n"  if !$O->{'quiet'}; ;
     system $svn_commit_cmd;
+    if ( $? == -1 ) {
+        print "command '$svn_commit_cmd' failed: $!\n";
+    }
+}
 
+sub or_replace {
+    my $replace_cmd = "/usr/bin/env perl -pi -e 's/CREATE (FUNCTION|VIEW)/CREATE OR REPLACE \$1/'";
+    my $prefix = $O->{'schemasubdir'} ? '*/' : '';
+    chdir $O->{'basedir'};
+    unless ($O->{'getfuncs'} || $O->{'getviews'}) {
+        print "no functions or views\n";
+        return;
+    }
+    if ($O->{'getfuncs'}) {
+        $replace_cmd .= " ${prefix}function/*";
+    }
+    if ($O->{'getviews'}) {
+        $replace_cmd .= " ${prefix}view/*";
+    }
+    print "$replace_cmd\n" if !$O->{'quiet'};
+    system $replace_cmd;
 }
 
 sub die_cleanup {
@@ -1044,6 +1094,10 @@ base directory for ddl export. ddlbase is from old version that was schema only.
 =item --hostname
 
 hostname of the database server; used as directory name under --basedir
+
+=item --dbdir
+
+database name (replaces --dbname as the directory name); used as directory under --hostname (If you are extracting multiple databases this is unsafe)
 
 =item --rolesdir
 
@@ -1266,6 +1320,10 @@ database or items that don't match your filters also have their old files delete
 =item --clean
 
 Adds DROP commands to the SQL output of all objects. Allows the same behavior as OR REPLACE since ACLs are included with all objects. WARNING: For overloaded function/aggregates, this adds drop commands for all versions to the single output file.
+
+=item --orreplace
+
+Modifies the function and view ddl files to replace CREATE with CREATE OR REPLACE.
 
 =item --sqldump
 
