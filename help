@@ -53,6 +53,10 @@ OPTIONS
     --hostname
         hostname of the database server; used as directory name under --basedir
 
+    --dbdir
+        database name (replaces --dbname as the directory name); used as directory under
+        --hostname (If you are extracting multiple databases this is unsafe)
+
     --rolesdir
         name of the directory under database name to place the export file with role data.
         no impact without the --getroles or --getall option.
@@ -237,6 +241,9 @@ OPTIONS
         OR REPLACE since ACLs are included with all objects. WARNING: For overloaded
         function/aggregates, this adds drop commands for all versions to the single output
         file.
+
+    --orreplace
+        Modifies the function and view ddl files to replace CREATE with CREATE OR REPLACE.
 
     --sqldump
         Also generate a pg_dump file. Will only contain schemas and tables designated by
