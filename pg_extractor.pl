@@ -3,12 +3,12 @@ use strict;
 use warnings;
 
 # PGExtractor, a script for doing advanced dump filtering and managing schema for PostgreSQL databases
-# Copyright 2011, OmniTI, Inc. (http://www.omniti.com/)
 # See complete license and copyright information at the bottom of this script
 # For newer versions of this script, please see:
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
+# Version 1.0.0
 
 use English qw( -no_match_vars);
 use File::Copy;
@@ -1390,7 +1390,7 @@ perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn -
 
 PGExtractor is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
 
-Copyright (c) 2011 OmniTI, Inc.
+Copyright (c) 2012 OmniTI, Inc.
 
 Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
 
