@@ -1005,10 +1005,10 @@ sub or_replace {
         print "no functions or views\n";
         return;
     }
-    if ($O->{'getfuncs'}) {
+    if ($O->{'getfuncs'} && (-d "${prefix}function") ) {
         $replace_cmd .= " ${prefix}function/*";
     }
-    if ($O->{'getviews'}) {
+    if ($O->{'getviews'} && (-d "${prefix}view") ) {
         $replace_cmd .= " ${prefix}view/*";
     }
     print "$replace_cmd\n" if !$O->{'quiet'};
