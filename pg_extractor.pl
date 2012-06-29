@@ -1120,6 +1120,10 @@ name of the directory under database name to place the export file with role dat
 
 breakout each schema's content into subdirectories under the database directory (hostname/databasedir/schema)
 
+=item --pgbin
+
+location of the required postgresql binaries (pg_dump, pg_restore, pg_dumpall). If these are all in the same location, you can use this single option instead of the individual --pgdump, --pgrestore and --pgdumpall options.
+
 =item --pgdump
 
 location of pg_dump executable (Default: searches $PATH )

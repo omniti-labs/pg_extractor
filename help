@@ -65,6 +65,11 @@ OPTIONS
         breakout each schema's content into subdirectories under the database directory
         (hostname/databasedir/schema)
 
+    --pgbin
+        location of the required postgresql binaries (pg_dump, pg_restore, pg_dumpall). If
+        these are all in the same location, you can use this single option instead of the
+        individual --pgdump, --pgrestore and --pgdumpall options.
+
     --pgdump
         location of pg_dump executable (Default: searches $PATH )
 
@@ -314,7 +319,7 @@ LICENSE AND COPYRIGHT
     PGExtractor is released under the PostgreSQL License, a liberal Open Source license,
     similar to the BSD or MIT licenses.
 
-    Copyright (c) 2011 OmniTI, Inc.
+    Copyright (c) 2012 OmniTI, Inc.
 
     Permission to use, copy, modify, and distribute this software and its documentation
     for any purpose, without fee, and without a written agreement is hereby granted,
