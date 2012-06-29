@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.0.0
+# Version 1.1.0
 
 use English qw( -no_match_vars);
 use File::Copy;
@@ -145,6 +145,7 @@ sub get_options {
         'schemasubdir!',
         'sqldumpdir=s',
         'rolesdir=s',
+        'pgbin=s',
         'pgdump=s',
         'pgrestore=s',
         'pgdumpall=s',
@@ -240,6 +241,18 @@ sub set_config {
         } else {
             die("NOTICE: No output options set. Please set one or more of the following: --gettables, --getviews, --getprocs, --gettypes, --getroles. Or --getall for all. Use --help to show all options\n");
         }
+    }
+
+    if ($O->{'pgbin'} && $O->{'pgdump'} eq "pg_dump") {
+        $O->{'pgdump'} = File::Spec->catdir($O->{'pgbin'}, "pg_dump");
+    }
+
+    if ($O->{'pgbin'} && $O->{'pgrestore'} eq"pg_restore") {
+        $O->{'pgrestore'} = File::Spec->catdir($O->{'pgbin'}, "pg_restore");
+    }
+
+    if ($O->{'pgbin'} && $O->{'pgdumpall'} eq "pg_dumpall") {
+        $O->{'pgdumpall'} = File::Spec->catdir($O->{'pgbin'}, "pg_dumpall");
     }
     
     if ($O->{'getdata'} && !$O->{'gettables'}) {
