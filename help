@@ -22,6 +22,13 @@ SYNOPSIS
 
 OPTIONS
 
+    --options_file
+        Use a configuration file to list all the options you'd like to use. Each option is
+        listed on its own line exactly as it would appear on the command line. This can be
+        used in combination with command line options, but preference will be given to
+        whichever is listed LAST on the command line. Also note that unlike other options
+        here, there is NO equal sign between the option and the path to the options file.
+
   database connection
 
     --host (-h)
@@ -307,6 +314,9 @@ EXAMPLES
     objects from svn that have been removed from the database.
         perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn
         --commitmsg="Weekly svn commit of postgres schema" --svndel
+
+    Using an options file
+        perl pg_extractor.pl --options_file /path/to/options_file
 
 AUTHOR
 

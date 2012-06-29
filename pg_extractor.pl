@@ -8,18 +8,25 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.1.0
+# Version 1.2.0
 
+use Cwd;
 use English qw( -no_match_vars);
 use File::Copy;
+use File::Find;
 use File::Path 'mkpath';
 use File::Spec;
 use File::Temp;
-use File::Find;
 use Getopt::Long qw( :config no_ignore_case );
-use Sys::Hostname;
+use Module::Load::Conditional qw(can_load);
 use Pod::Usage;
-use Cwd;
+use Sys::Hostname;
+
+my $optional_modules = {
+	'Getopt::ArgvFile' => undef,
+};
+my $argvfile_load = can_load(modules => $optional_modules);
+
 
 my ($excludeschema_dump, $includeschema_dump, $excludetable_dump, $includetable_dump) = ("","","","");
 my (@includeview, @excludeview);
@@ -118,8 +125,12 @@ exit;
 ############################
 
 
-# TODO See if it's possible to dump objects that a user has any (maybe some?) permissions on.
 sub get_options {
+
+	if ($argvfile_load) {
+		Getopt::ArgvFile::argvFile(fileOption=>'options_file');
+	}
+
     my %o = (
         'pgdump' => "pg_dump",
         'pgrestore' => "pg_restore",
@@ -1066,6 +1077,14 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
 
 =head1 OPTIONS
 
+=over
+
+=item --options_file
+
+Use a configuration file to list all the options you'd like to use. Each option is listed on its own line exactly as it would appear on the command line. This can be used in combination with command line options, but preference will be given to whichever is listed LAST on the command line. Also note that unlike other options here, there is NO equal sign between the option and the path to the options file.
+
+=back
+
 =head2 database connection
 
 =over
@@ -1394,6 +1413,10 @@ perl pg_extractor.pl -U postgres --dbname=mydb --pgdump=/opt/pgsql/bin/pg_dump -
 =item Using svn (svn username & password must be set in script source). Also cleans up objects from svn that have been removed from the database.
 
 perl pg_extractor.pl -U postgres --dbname=mydb --svn --svncmd=/opt/svn/bin/svn --commitmsg="Weekly svn commit of postgres schema" --svndel
+
+=item Using an options file
+
+perl pg_extractor.pl --options_file /path/to/options_file
 
 =back
 
