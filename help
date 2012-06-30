@@ -75,7 +75,8 @@ OPTIONS
     --pgbin
         location of the required postgresql binaries (pg_dump, pg_restore, pg_dumpall). If
         these are all in the same location, you can use this single option instead of the
-        individual --pgdump, --pgrestore and --pgdumpall options.
+        individual --pgdump, --pgrestore and --pgdumpall options. (Default: searches $PATH
+        )
 
     --pgdump
         location of pg_dump executable (Default: searches $PATH )
@@ -246,7 +247,7 @@ OPTIONS
         objects deleted from the database or items that don't match your filters also have
         their old files deleted. WARNING: This WILL delete ALL .sql files in the
         destination folder(s) which don't match your desired output. Not required when
-        using the --svndel option.
+        using the --svndel or --gitdel option.
 
     --clean
         Adds DROP commands to the SQL output of all objects. Allows the same behavior as

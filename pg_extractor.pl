@@ -1141,7 +1141,7 @@ breakout each schema's content into subdirectories under the database directory 
 
 =item --pgbin
 
-location of the required postgresql binaries (pg_dump, pg_restore, pg_dumpall). If these are all in the same location, you can use this single option instead of the individual --pgdump, --pgrestore and --pgdumpall options.
+location of the required postgresql binaries (pg_dump, pg_restore, pg_dumpall). If these are all in the same location, you can use this single option instead of the individual --pgdump, --pgrestore and --pgdumpall options. (Default: searches $PATH )
 
 =item --pgdump
 
@@ -1351,7 +1351,7 @@ File containing the commit message to send to git or svn
 =item --delete
 
 Use when running again on the same destination directory as previous runs so that objects deleted from the
-database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. Not required when using the --svndel option.
+database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output. Not required when using the --svndel or --gitdel option.
 
 =item --clean
 
