@@ -25,6 +25,7 @@ use Sys::Hostname;
 my $optional_modules = {
 	'Getopt::ArgvFile' => undef,
 };
+
 my $argvfile_load = can_load(modules => $optional_modules);
 
 
@@ -36,6 +37,7 @@ my (@regex_incl, @regex_excl);
 my (@schemalist, @tablelist, @viewlist, @functionlist, @aggregatelist, @typelist, @acl_list, @commentlist);
 my (%createdfiles);
 
+my %ignoredirs = ('.svn' => 1, '.git' => 1);
 
 ################ Run main program subroutines
 #my $start_time = time();
@@ -1021,22 +1023,21 @@ sub svn_commit {
     }
 }
 
-sub or_replace {
-    my $replace_cmd = "/usr/bin/env perl -pi -e 's/CREATE (FUNCTION|VIEW)/CREATE OR REPLACE \$1/'";
-    my $prefix = $O->{'schemasubdir'} ? '*/' : '';
-    chdir $O->{'basedir'};
-    unless ($O->{'getfuncs'} || $O->{'getviews'}) {
-        print "no functions or views\n";
+sub or_replace_action {
+    if ($ignoredirs{$_}) {
+        $File::Find::prune = 1;
         return;
     }
-    if ($O->{'getfuncs'} && (-d "${prefix}function") ) {
-        $replace_cmd .= " ${prefix}function/*";
-    }
-    if ($O->{'getviews'} && (-d "${prefix}view") ) {
-        $replace_cmd .= " ${prefix}view/*";
-    }
-    print "$replace_cmd\n" if !$O->{'quiet'};
+    return unless -f;
+    return unless $File::Find::name =~ /function|view/;
+
+    my $replace_cmd = "/usr/bin/env perl -pi -e 's/CREATE (FUNCTION|VIEW)/CREATE OR REPLACE \$1/' $_";
+    print "$replace_cmd\n" unless $O->{'quiet'};
     system $replace_cmd;
+}
+    
+sub or_replace {
+    find (\&or_replace_action,$O->{'basedir'});
 }
 
 sub die_cleanup {
