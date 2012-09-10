@@ -28,6 +28,7 @@ OPTIONS
         used in combination with command line options, but preference will be given to
         whichever is listed LAST on the command line. Also note that unlike other options
         here, there is NO equal sign between the option and the path to the options file.
+        Requires perl Getopt::ArgvFile module.
 
   database connection
 

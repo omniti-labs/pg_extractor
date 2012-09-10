@@ -1102,7 +1102,7 @@ A script for doing advanced dump filtering and managing schema for PostgreSQL da
 
 =item --options_file
 
-Use a configuration file to list all the options you'd like to use. Each option is listed on its own line exactly as it would appear on the command line. This can be used in combination with command line options, but preference will be given to whichever is listed LAST on the command line. Also note that unlike other options here, there is NO equal sign between the option and the path to the options file.
+Use a configuration file to list all the options you'd like to use. Each option is listed on its own line exactly as it would appear on the command line. This can be used in combination with command line options, but preference will be given to whichever is listed LAST on the command line. Also note that unlike other options here, there is NO equal sign between the option and the path to the options file. Requires perl Getopt::ArgvFile module.
 
 =back
 
