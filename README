@@ -3,4 +3,4 @@ PGExtractor is designed to give more advanced filtering options to pg_dump. It d
 See --help for a full list of available options. EXAMPLES section of the help gives some demonstration of using the program.
 Documentation is contained within the script and done in POD format. "help" file is generated via pod2text. 
 
-Development is still ongoing but this should be safe for production use. The script only uses pg_dump/all to touch the database. pg_restore is only used for generating ddl and does not ever touch the database. Please report any bugs!
+The script only uses pg_dump/all to touch the database. pg_restore is only used for generating ddl and does not ever touch the database. Please report any bugs!
