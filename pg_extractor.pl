@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.3.0
+# Version 1.4.0
 
 use Cwd;
 use English qw( -no_match_vars);
@@ -32,7 +32,8 @@ my (@includeview, @excludeview);
 my (@includefunction, @excludefunction);
 my (@includeowner, @excludeowner);
 my (@regex_incl, @regex_excl);
-my (@schemalist, @tablelist, @viewlist, @functionlist, @aggregatelist, @typelist, @sequencelist, @acl_list, @commentlist);
+my (@schemalist, @tablelist, @viewlist, @functionlist, @aggregatelist, @typelist);
+my (@sequencelist, @acl_list, @commentlist, @triggerlist, @rulelist);
 my (%createdfiles);
 
 +my %ignoredirs = ('.svn' => 1, '.git' => 1);
@@ -89,6 +90,14 @@ if ($O->{'getschemata'} || $O->{'gettables'} || $O->{'getfuncs'} || $O->{'getvie
     if (@sequencelist) {
         print "Creating sequence ddl files...\n" if !$O->{'quiet'};
         create_ddl_files(\@sequencelist, "sequence");
+    }
+    if (@triggerlist) {
+        print "Creating trigger ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@triggerlist, "trigger");
+    }
+    if (@rulelist) {
+        print "Creating rule ddl files...\n" if !$O->{'quiet'};
+        create_ddl_files(\@rulelist, "rule");
     }
 }
 
@@ -173,6 +182,8 @@ sub get_options {
         'getroles!',
         'getall!',
         'getsequences!',
+        'gettriggers!',
+        'getrules!',
         'getdata!',
         'Fc!',
         'sqldump!',
@@ -254,8 +265,8 @@ sub set_config {
             $O->{'getviews'} = 1;
             $O->{'gettypes'} = 1;
             $O->{'getroles'} = 1;
-        } elsif ($O->{'getsequences'}) {
-            # do nothing and allow only sequences to be dumped
+        } elsif ($O->{'getsequences'} || $O->{'gettriggers'} || $O->{'getrules'}) {
+            # do nothing and allow only sequences, triggers or rules to be dumped
         } else {
             die("NOTICE: No output options set. Please set one or more of the following: --gettables, --getviews, --getprocs, --gettypes, --getroles. Or --getall for all. Use --help to show all options\n");
         }
@@ -478,7 +489,7 @@ sub build_object_lists {
         }
         #print "restorecmd result: $_ \n";
         my ($typetest) = /\d+;\s\d+\s\d+\s+(\S+)/;
-        if ($typetest =~ /^(TABLE|VIEW|TYPE|SCHEMA)/) {
+        if ($typetest =~ /^(TABLE|VIEW|TYPE|SCHEMA|RULE|TRIGGER)/) {
             # avoid output error when table data is being exported
             if ($typetest =~ /^TABLE/) {
                 if ( /\d+;\s\d+\s\d+\sTABLE\sDATA\s\S+\s\S+\s\S+/ ) {
@@ -682,6 +693,28 @@ sub build_object_lists {
             };
         }
 
+        if ($O->{'gettriggers'} && $objtype eq "TRIGGER") {
+            push @triggerlist, {
+                "id" => $objid,
+                "type" => $objtype,
+                "schema" => $objschema,
+                "name" => $objname,
+                "fnname" => $fnname,
+                "owner" => $objowner,
+            };
+        }
+
+        if ($O->{'getrules'} && $objtype eq "RULE") {
+            push @rulelist, {
+                "id" => $objid,
+                "type" => $objtype,
+                "schema" => $objschema,
+                "name" => $objname,
+                "fnname" => $fnname,
+                "owner" => $objowner,
+            };
+        }
+
         if ($objtype eq "COMMENT") {
 
             push @commentlist, {
@@ -705,6 +738,7 @@ sub build_object_lists {
                 "owner" => $objowner,
             };
         }
+
     } # end restorecmd if
 } # end build_object_lists
 
@@ -1208,11 +1242,19 @@ include an export file containing all roles in the cluster.
 
 =item --getall
 
-gets all tables, views, functions, types and roles. Shortcut to having to set all --get* options. Does NOT include data or separate sequence files (see --getsequences).
+gets all tables, views, functions, types and roles. Shortcut to having to set all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).
 
 =item --getsequences
 
 If you need to export unowned sequences, set this option. --gettables or --getall will include any sequence that is owned by a table in that table's output file. Note that this will export both owned and unowned sequences to the separate sequence folder. Current sequence values can only be obtained for owned sequences and will only be output in the table file if --getdata is set.
+
+=item --gettriggers
+
+If you need to export triggers that are not part of a table (like INSTEAD OF on VIEWS), set this option. It's not currently possible to include these in the referring object files. Note that this will also export triggers separately that are in table files.
+
+=item --getrules
+
+If you need to export rules that are not part of a table (like INSTEAD OF on VIEWS), set this option. It's not currently possible to include these in the referring object files. Note that this will also export rules separately that are in table files.
 
 =item --getdata
 

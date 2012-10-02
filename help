@@ -114,8 +114,8 @@ OPTIONS
 
     --getall
         gets all tables, views, functions, types and roles. Shortcut to having to set all
-        --get* options. Does NOT include data or separate sequence files (see
-        --getsequences).
+        --get* options. Does NOT include data or separate sequence, trigger or rule files
+        (see --getsequences, --gettriggers, --getrules).
 
     --getsequences
         If you need to export unowned sequences, set this option. --gettables or --getall
@@ -123,6 +123,18 @@ OPTIONS
         Note that this will export both owned and unowned sequences to the separate
         sequence folder. Current sequence values can only be obtained for owned sequences
         and will only be output in the table file if --getdata is set.
+
+    --gettriggers
+        If you need to export triggers that are not part of a table (like INSTEAD OF on
+        VIEWS), set this option. It's not currently possible to include these in the
+        referring object files. Note that this will also export triggers separately that
+        are in table files.
+
+    --getrules
+        If you need to export rules that are not part of a table (like INSTEAD OF on
+        VIEWS), set this option. It's not currently possible to include these in the
+        referring object files. Note that this will also export rules separately that are
+        in table files.
 
     --getdata
         include data in the output files. Note that format will be plaintext (-Fp) unless
