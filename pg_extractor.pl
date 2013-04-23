@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.4.0
+# Version 1.4.1
 
 use Cwd;
 use English qw( -no_match_vars);
@@ -497,6 +497,9 @@ sub build_object_lists {
                 }
             }
             ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+)\s(\S+)\s(\S+)\s(\S+)/;
+        } elsif (/\d+;\s\d+\s\d+\sFOREIGN\sTABLE\s\S+\s\S+\s\S+/) {
+            ($objid, $objtype, $objschema, $objname, $objowner) = /(\d+;\s\d+\s\d+)\s(\S+ \S+)\s(\S+)\s(\S+)\s(\S+)/;
+
         # sequences owned by a table will be output with the table as well and set ownership there.
         } elsif ($typetest =~ /^SEQUENCE/) {
             if ( /\d+;\s\d+\s\d+\sSEQUENCE\sOWNED\sBY\s\S+\s\S+\s\S+/ ) {
@@ -570,7 +573,7 @@ sub build_object_lists {
             };
         }
 
-        if ($O->{'gettables'} && $objtype eq "TABLE") {
+        if (($O->{'gettables'} && $objtype eq "TABLE") || ($objtype eq "FOREIGN TABLE")) {
             push @tablelist, {
                 "id" => $objid,
                 "type" => $objtype,
@@ -800,7 +803,7 @@ sub create_ddl_files {
 
         $list_file_contents = "$t->{id} $t->{type} $t->{schema} $t->{name} $t->{owner}\n";
 
-        if ($t->{'type'} eq "TABLE") {
+        if (($t->{'type'} eq "TABLE") || ($t->{'type'} eq "FOREIGN TABLE")) {
             #TODO see if there's a better way to handle this. Seems sketchy but works for now
             # extra quotes to keep the shell from eating the doublequotes & allow for mixed case or special chars
             $pgdumpcmd = "$O->{pgdump} $format --table=\'\"$t->{schema}\"\'.\'\"$t->{name}\"\'";
@@ -1222,7 +1225,7 @@ export schema ddl
 
 =item --gettables
 
-export table ddl. Each file includes table's indexes, constraints, sequences, comments, rules and triggers
+export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules and triggers
 
 =item --getviews
 

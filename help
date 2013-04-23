@@ -95,8 +95,8 @@ OPTIONS
         export schema ddl
 
     --gettables
-        export table ddl. Each file includes table's indexes, constraints, sequences,
-        comments, rules and triggers
+        export table ddl (includes foreign tables). Each file includes table's indexes,
+        constraints, sequences, comments, rules and triggers
 
     --getviews
         export view ddl
