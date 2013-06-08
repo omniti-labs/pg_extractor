@@ -900,7 +900,7 @@ sub create_role_ddl {
     my @version_elements = $version_info =~ m{(\d+)}g;
     my $version = sprintf '%03d%03d', @version_elements[0,1];
 
-    my $roles_option = $version < '008003' ? '--globals-only' : '--roles-only';
+    my $roles_option = $version lt '008003' ? '--globals-only' : '--roles-only';
 
     my $dumprolecmd = "$O->{pgdumpall} $roles_option > $filepath";
     system $dumprolecmd;
