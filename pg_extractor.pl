@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.4.1
+# Version 1.4.2
 
 use Cwd;
 use English qw( -no_match_vars);
@@ -900,7 +900,7 @@ sub create_role_ddl {
     my @version_elements = $version_info =~ m{(\d+)}g;
     my $version = sprintf '%03d%03d', @version_elements[0,1];
 
-    my $roles_option = $version < '008003' ? '--globals-only' : '--roles-only';
+    my $roles_option = $version lt '008003' ? '--globals-only' : '--roles-only';
 
     my $dumprolecmd = "$O->{pgdumpall} $roles_option > $filepath";
     system $dumprolecmd;
