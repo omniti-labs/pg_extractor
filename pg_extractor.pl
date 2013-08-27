@@ -573,7 +573,7 @@ sub build_object_lists {
             };
         }
 
-        if (($O->{'gettables'} && $objtype eq "TABLE") || ($objtype eq "FOREIGN TABLE")) {
+        if ($O->{'gettables'} && ($objtype eq "TABLE") || ($objtype eq "FOREIGN TABLE")) {
             push @tablelist, {
                 "id" => $objid,
                 "type" => $objtype,
