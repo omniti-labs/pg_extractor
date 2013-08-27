@@ -824,6 +824,19 @@ sub create_ddl_files {
             }
             $pgdumpcmd .= " > $fqfn.sql";
             system $pgdumpcmd;
+        } elsif ($t->{'type'} eq "VIEW") {
+            $pgdumpcmd = "$O->{pgdump} $format --table=\'\"$t->{schema}\"\'.\'\"$t->{name}\"\'";
+            if ($O->{'no-owner'}) {
+                $pgdumpcmd .= " --no-owner ";
+            }
+            if ($O->{'no-acl'}) {
+                $pgdumpcmd .= " --no-acl ";
+            }
+            if ($O->{'clean'}) {
+                $pgdumpcmd .= " --clean ";
+            }
+            $pgdumpcmd .= " > $fqfn.sql";
+            system $pgdumpcmd;
         } else {
             # TODO this is a mess but, amazingly, it works. try and tidy up if possible.
             # put all functions with same basename in the same output file
@@ -1229,7 +1242,7 @@ export table ddl (includes foreign tables). Each file includes table's indexes, 
 
 =item --getviews
 
-export view ddl
+export view ddl. Each file includes comments
 
 =item --getfuncs
 
