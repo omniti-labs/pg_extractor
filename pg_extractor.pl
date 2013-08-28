@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.4.2
+# Version 1.4.3
 
 use Cwd;
 use English qw( -no_match_vars);
@@ -573,7 +573,7 @@ sub build_object_lists {
             };
         }
 
-        if (($O->{'gettables'} && $objtype eq "TABLE") || ($objtype eq "FOREIGN TABLE")) {
+        if ($O->{'gettables'} && ($objtype eq "TABLE" || $objtype eq "FOREIGN TABLE")) {
             push @tablelist, {
                 "id" => $objid,
                 "type" => $objtype,
