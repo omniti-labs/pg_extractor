@@ -8,7 +8,7 @@ use warnings;
 # https://github.com/omniti-labs/pg_extractor
 # POD Documentation also available by issuing pod2text pg_extractor.pl
 
-# Version 1.4.3
+# Version 1.4.4
 
 use Cwd;
 use English qw( -no_match_vars);
@@ -803,7 +803,7 @@ sub create_ddl_files {
 
         $list_file_contents = "$t->{id} $t->{type} $t->{schema} $t->{name} $t->{owner}\n";
 
-        if (($t->{'type'} eq "TABLE") || ($t->{'type'} eq "FOREIGN TABLE")) {
+        if (($t->{'type'} eq "TABLE") || ($t->{'type'} eq "FOREIGN TABLE") || ($t->{'type'} eq "VIEW")) {
             #TODO see if there's a better way to handle this. Seems sketchy but works for now
             # extra quotes to keep the shell from eating the doublequotes & allow for mixed case or special chars
             $pgdumpcmd = "$O->{pgdump} $format --table=\'\"$t->{schema}\"\'.\'\"$t->{name}\"\'";
