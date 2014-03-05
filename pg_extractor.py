@@ -5,9 +5,14 @@ if sys.version_info[0] != 3:
     print("This script requires Python version 3.0 or greater")
     sys.exit(2)
 
-import argparse, fileinput, os, os.path, re, shutil, socket, subprocess, tempfile
+import argparse, errno, fileinput, os, os.path, re, shutil, socket, subprocess, tempfile
 
 class PGExtractor:
+    """
+    A class object for the PG Extractor PostgreSQL dump filter script. 
+    Some public methods are available for individual use outside this script's normal function, 
+    but many of its advanced features are only available via the command line interface to the script.
+    """
 
     def __init__(self):
         self.version = "2.0.0beta"
@@ -19,11 +24,14 @@ class PGExtractor:
 #
 ######################################################################################
 
-    ####
-    # Build a list of all objects contained in the dump file
-    # Currently only returns the following object types:
-    ####
     def build_main_object_list(self, restore_file="#default#"):
+        """
+        Build a list of all objects contained in the dump file 
+
+        * restore_file: path to a custom format (-Fc) pg_dump file 
+
+        Returns a list containing a dictionary object for each line obtained when running pg_restore -l
+        """
         main_object_list = []
         if restore_file == "#default#":
             restore_file = self.tmp_dump_file.name
@@ -89,7 +97,6 @@ class PGExtractor:
                 continue
             obj_type = p_main_object_type.match(o)
             if obj_type != None:
-                print(o)
                 # Matches function/agg or the ACL for them
                 if ( re.match(p_objid + r'\s(FUNCTION|AGGREGATE)', o) 
                         or (obj_type.group('type').strip() == "ACL" and re.search(r'\(.*\)', o)) ):
@@ -168,15 +175,16 @@ class PGExtractor:
         return main_object_list
     # end build_main_object_list()
 
-    ####
-    # Return a list of objects of a given objtype
-    #
-    # object_list 
-    #   - must be in the format created by build_main_object_list()
-    # list_types
-    #   - list object of desired object types
-    ####
+
     def build_type_object_list(self, object_list, list_types):
+        """
+        Build a list of objects only of the given types. 
+
+        * object_list - a list in the format created by build_main_object_list 
+        * list_types - a list of desired object types (objtype field in object_list) 
+
+        Returns a filtered list in the same format as object_list
+        """
         type_object_list = []
         for o in object_list:
             for t in list_types:
@@ -192,31 +200,36 @@ class PGExtractor:
         return type_object_list
     # end build_type_object_list()
 
-    ####
-    # Handle directory creation
-    ####
+
     def create_dir(self, dest_dir):
-        if os.path.exists(dest_dir) == False:
-            try:
-                os.mkdir(dest_dir)
-            except OSError as e:
+        """
+        Create the given directory if it does not exist.
+        Must be a full path and full directory tree will be created.
+
+        Returns dest_dir if directory creation was successful, or the directory already exists.
+        """
+        try:
+            os.makedirs(dest_dir)
+        except OSError as e:
+            if e.errno == errno.EEXIST and os.path.isdir(dest_dir):
+                pass
+            else:
                 print("Unable to create directory: " + e.filename + ": " + e.strerror)
         return dest_dir
     # end create_dir()
 
-    ####
-    # Create extracted DDL files in an organized folder structure
-    # Many of the additional folder & filter options are not available when this is called directly
-    # pg_dump command uses environment variables for several settings (add list to docstring)
-    #
-    # object_list
-    #   - Must be in the format created by build_main_object_list()
-    # target_dir 
-    #   - Must be a full directory path.
-    #   - Directory will be created if it does not exist.
-    #   - Allows direct calls to this function to have a working base directory
-    ####
+
     def create_extract_files(self, object_list, target_dir="#default#"):
+        """
+        Create extracted DDL files in an organized folder structure. 
+        Many of the additional folder & filter options are not available when this is called directly. 
+        pg_dump command uses environment variables for several settings (add list to docstring). 
+
+        * object_list - a list in the format created by build_main_object_list 
+        * target_dir - full path to a directory to use as output for extracted files.
+            Will be created if it doesn't exist.
+            Used in same manner as --basedir option to command line version.
+        """
         extract_file_list = []
         if target_dir == "#default#":
             # Allows direct calls to this function to be able to have a working base directory
@@ -244,10 +257,12 @@ class PGExtractor:
                 print("Invalid dump type in create_extract_files() module")
                 sys.exit(2)
 
-            output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objname') + ".sql")
+            # replace any non-alphanumeric characters with ",hexcode,"
+            objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+            objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+            output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
             extract_file_list.append(output_file)
             # TODO Do parallel dump stuff here
-            # TODO Have it queue up jobs in the run list and when -j number is hit, kick them off and clear the queue
             self._run_pg_dump(o, output_file)
 
         # Objects that can be overloaded
@@ -258,8 +273,16 @@ class PGExtractor:
             if self.args and self.args.schemadir:
                 if o.get('objschema') != "-":
                     output_file = self.create_dir(os.path.join(output_file, o.get('objschema')))
-            output_file = self.create_dir(os.path.join(output_file, 'functions'))
-            output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objbasename') + ".sql")
+            if o.get('objtype') == "FUNCTION":
+                output_file = self.create_dir(os.path.join(output_file, 'functions'))
+            elif o.get('objtype') == "AGGREGATE":
+                output_file = self.create_dir(os.path.join(output_file, 'aggregates'))
+            else:
+                print("Invalid object type found while creating function/aggregate extraction files: " + o.get('objtype'))
+            # replace any non-alphanumeric characters with ",hexcode,"
+            objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+            objbasename_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objbasename'))
+            output_file = os.path.join(output_file, objschema_filename + "." + objbasename_filename + ".sql")
             extract_file_list.append(output_file)
             fh = open(tmp_restore_list.name, 'w')
             # loop over same list to find overloaded functions
@@ -297,7 +320,10 @@ class PGExtractor:
                     if o.get('objschema') != "-":
                         output_file = os.path.join(output_file, self.create_dir(o.get('objschema')))
                 output_file = self.create_dir(os.path.join(output_file, 'sequences'))
-                output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objname') + ".sql")
+                # replace any non-alphanumeric characters with ",hexcode,"
+                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
                 extract_file_list.append(output_file)
                 fh = open(tmp_restore_list.name, 'w')
                 restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
@@ -320,7 +346,7 @@ class PGExtractor:
                         restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
                         restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
                         fh.write(restore_line)
-                        fh.close()
+                fh.close()
                 self._run_pg_restore(tmp_restore_list.name, output_file)
 
         # All other objects extracted via _run_pg_restore()
@@ -332,19 +358,33 @@ class PGExtractor:
 
             if o.get('objtype') == "RULE":
                 output_file = self.create_dir(os.path.join(output_file, 'rules'))
-                output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objname') + ".sql")
+                # replace any non-alphanumeric characters with ",hexcode,"
+                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
 
             if o.get('objtype') == "SCHEMA":
-                output_file = self.create_dir(os.path.join(output_file, 'schemata'))
-                output_file = os.path.join(output_file, o.get('objname') + ".sql")
+                if self.args and self.args.schemadir:
+                    output_file = self.create_dir(os.path.join(output_file, o.get('objname')))
+                else:
+                    output_file = self.create_dir(os.path.join(output_file, 'schemata'))
+                # replace any non-alphanumeric characters with ",hexcode,"
+                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                output_file = os.path.join(output_file, objname_filename + ".sql")
 
             if o.get('objtype') == "TRIGGER":
                 output_file = self.create_dir(os.path.join(output_file, 'triggers'))
-                output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objname') + ".sql")
+                # replace any non-alphanumeric characters with ",hexcode,"
+                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
 
             if o.get('objtype') == "TYPE":
                 output_file = self.create_dir(os.path.join(output_file, 'types'))
-                output_file = os.path.join(output_file, o.get('objschema') + "." + o.get('objname') + ".sql")
+                # replace any non-alphanumeric characters with ",hexcode,"
+                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
 
             extract_file_list.append(output_file)
             fh = open(tmp_restore_list.name, 'w')
@@ -374,15 +414,16 @@ class PGExtractor:
         return extract_file_list
     # end create_extract_files()
 
-    ####
-    # Delete files that don't exist in a list of given files
-    # Delete folders in a given path if they are empty
-    # keep_file_list
-    #   - list object containing full paths to files that should remain
-    # target_dir
-    #   - Full path to target directory of files to clean up
-    ####
+
     def delete_files(self, keep_file_list, target_dir="#default#"):
+        """
+        Delete files with .sql extension that don't exist in a list of given files. 
+        Delete folders in a given path if they are empty. 
+
+        * keep_file_list: list object containing full paths to files that SHOULD REMAIN
+        * target_dir: full path to target directory of files to clean up.
+
+        """
         if target_dir == "#default#":
             target_dir = self.args.basedir
         if self.args and self.args.debug:
@@ -402,20 +443,22 @@ class PGExtractor:
         for root, dirs, files in os.walk(target_dir):
             files = [f for f in files if not f[0] == '.'] # ignore hidden files
             dirs[:] = [d for d in dirs if not d[0] == '.'] # ignore hidden dirs
-            if root != target_dir and len(files) == 0:
+            if root != target_dir and len(files) == 0 and len(dirs) == 0:
                 if self.args and self.args.debug:
                     print("DELETE EMPTY DIR: " + root)
                 os.rmdir(root)
+    # end delete_files()
 
 
-    ####
-    # Extract role ddl
-    # TODO: hide_passwords (not yet working)
-    #   - Remove the password hash from the output file
-    # output_dir 
-    #   - Full path to a target directory for the roles file
-    ####
-    def extract_roles(self, hide_passwords=False, output_dir="#default#"):
+    def extract_roles(self, output_dir="#default#"):
+        """
+        Extract the roles from the database cluster (uses pg_dumpall -r)
+
+        * output_dir: full path to folder where file will be created. 
+            Full directory tree will be created if it does not exist.
+
+        Returns the full path to the output_file that was created.
+        """
         pg_dumpall_cmd = ["pg_dumpall", "--roles-only"]
         if output_dir == "#default#":
             output_file = self.create_dir(os.path.join(self.args.basedir, "roles"))
@@ -431,18 +474,22 @@ class PGExtractor:
             print("Error in pg_dumpall command while extracting roles: " + str(e.cmd))
             sys.exit(2)
         return output_file
+    # end extract_roles()
 
 
-    ####
-    # Print out version
-    ####
     def print_version(self):
+        """ Print out the current version of this script. """
         print(self.version)
+    # end print_version()
 
-    ####
-    # Replace CREATE with CREATE OR REPLACE in view & function files in a given target dir
-    ####
+
     def or_replace(self, target_dir_funcs="#default#", target_dir_views="#default#"):
+        """
+        Replace CREATE with CREATE OR REPLACE in view & function files in a given target dir
+
+        * target_dir_funcs: target directory containing function sql files
+        * target_dir_views: target directory containint view sql files
+        """
         if target_dir_funcs == "#default#":
             target_dir_funcs = os.path.join(self.args.basedir, "functions")
         if target_dir_views == "#default#":
@@ -469,7 +516,37 @@ class PGExtractor:
                         print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True):
                         print(re.sub(r'^CREATE VIEW\b', "CREATE OR REPLACE VIEW", line), end="")
+    # end or_replace()
 
+
+    def replace_char_with_hex(self, string):
+        """
+        Replace any non-alphanumeric characters in a given string with their hex values.
+        Hex value will be surrounded by commas on either side to distiguish it.
+
+        Example:
+                str|ing  ->  str,7c,ng
+        """
+        return ',{:02x},'.format(ord(string.group()))
+    # end replace_char_with_hex()
+
+
+    def remove_passwords(self, role_file):
+        """
+        Remove the password hash from a role dump file created by pg_dumpall.
+        Leaves the file as valid SQL, but without the PASSWORD parameter to ALTER ROLE.
+
+        * role_file: full path to the dump file
+        """
+        if os.path.isfile(role_file):
+            for line in fileinput.input(role_file, inplace=True):
+                if re.match(r'ALTER ROLE', line):
+                    print(re.sub(r'(.*)\sPASSWORD\s.*(;)$', r'\1\2', line), end="")
+                else:
+                    print(line, end="")
+        else:
+            print("Given role file does not exist: " + role_file)
+    # end remove_passwords()
 
 ######################################################################################
 #
@@ -661,7 +738,6 @@ class PGExtractor:
                 if (self.args.gettriggers == False):
                     continue
 
-            print("APPENDING " + str(o))
             filtered_list.append(o)
 
         if self.args.debug:
@@ -677,12 +753,12 @@ class PGExtractor:
     def _parse_arguments(self):
         self.parser = argparse.ArgumentParser(description="A script for doing advanced dump filtering and managing schema for PostgreSQL databases. See NOTES section at the top of the script source for more details and examples.")
         args_conn = self.parser.add_argument_group(title="Database Connection")
-        args_conn.add_argument('--host', default=socket.gethostname(), help="Database server host or socket directory used by pg_dump. Different than --hostname option under directory settings. (Default: Result of socket.gethostname())")
-        args_conn.add_argument('-p', '--port', default="5432", help="Database server port.")
-        args_conn.add_argument('-U', '--username', help="Database user name used by pg_dump.")
-        args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. If this or the PGDATABASE environmet variable are not set, object folders will be created at the --basedir level.")
-        args_conn.add_argument('--encoding', help="Create the dump files in the specified character set encoding. By default, the dump is created in the database encoding.")
-        args_conn.add_argument('--pgpass', help="Full file path to location of .pgpass file if not in default location.")
+        args_conn.add_argument('--host', default=socket.gethostname(), help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. (Default: Result of socket.gethostname())")
+        args_conn.add_argument('-p', '--port', default="5432", help="Database server port. Can also set with the PGPORT environment variable.")
+        args_conn.add_argument('-U', '--username', help="Database user name used by pg_dump. Can also be set with PGUSER environment variable. Defaults to system username.")
+        args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. Can also be set with PGDATABASE environment variable. If this or PGDATABASE are not set, object folders will be created at the --basedir level.")
+        args_conn.add_argument('--encoding', help="Create the dump files in the specified character set encoding. By default, the dump is created in the database encoding. Can also be set with the PGCLIENTENCODING environment variable.")
+        args_conn.add_argument('--pgpass', help="Full file path to location of .pgpass file if not in default location. Can also be set with the PGPASSFILE environment variable.")
 
         args_dir = self.parser.add_argument_group(title="Directories")
         args_dir.add_argument('--basedir', default=os.getcwd(), help="Base directory for ddl export. (Default: directory pg_extractor is run from)")
@@ -695,15 +771,15 @@ class PGExtractor:
         args_filter = self.parser.add_argument_group(title="Filters")
         args_filter.add_argument('--getall', action="store_true", help="Exports all tables, views, functions, types and roles. Shortcut to setting almost all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).")
         args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl.")
-        args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers and permissions.")
-        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl.")
+        args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers.")
+        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl. Each file includes all rules & triggers.")
         args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions.")
         args_filter.add_argument('--gettypes', action="store_true", help="Export custom types.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control.")
         args_filter.add_argument('--getsequences', action="store_true", help="If you need to export unowned sequences, set this option. Note that this will export both owned and unowned sequences to the separate sequence folder. --gettables or --getall will include any sequence that is owned by a table in that table's output file as well. Current sequence values can only be included in the extracted file if --getdata is set.")
         args_filter.add_argument('--gettriggers', action="store_true", help="If you need to export triggers definitions separately, use this option. This does not export the trigger function, just the CREATE TRIGGER statement. Use --getfuncs to get trigger functions. Note that trigger definitions are also included in their associated object files (tables, views, etc).")
-        args_filter.add_argument('--getrules', action="store_true", help="If you need to export rules that are not part of a table (like INSTEAD OF on VIEWS), set this option. It is not currently possible to include these in the referring object files. Note that this will also export rules separately that are in table files.")
-        args_filter.add_argument('--getdata', action="store_true", help="Include data in the output files. Format will be plaintext (-Fp) unless -Fc option is explicitly given. Note this option can cause a lot of extra disk space usage while the script is being  run. At minimum make sure you have enough space for 3 full dumps of the database to account for all other options that can be set.")
+        args_filter.add_argument('--getrules', action="store_true", help="If you need to export rules separately, set this option. Note that rules will also still be included in their associated object files (tables, views, etc).")
+        args_filter.add_argument('--getdata', action="store_true", help="Include data in the output files. Format will be plaintext (-Fp) unless -Fc option is explicitly given. Note this option can cause a lot of extra disk space usage while the script is being run. At minimum make sure you have enough space for 3 full dumps of the database to account for all other options that can be set.")
         args_filter.add_argument('-Fc', '--Fc', action="store_true", help="Output in pg_dump custom format (useful with --getdata). Otherwise, default is always plaintext (-Fp) format.")
         args_filter.add_argument('-n', '--schema_include', help="CSV list of schemas to INCLUDE. Object in only these schemas will be exported.")
         args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported.")
@@ -728,12 +804,11 @@ class PGExtractor:
         args_filter.add_argument('--no_owner', action="store_true", help="Do not add commands to extracted files that set ownership of objects to match the original database.")
         args_filter.add_argument('-x', '--no_acl', '--no_privileges', action="store_true", help="Prevent dumping of access privileges (grant/revoke commands")
 
-        args_vc = self.parser.add_argument_group(title="Version Control")
-
         args_misc = self.parser.add_argument_group(title="Misc")
         args_misc.add_argument('--delete', action="store_true", help="Use when running again on the same destination directory as previous runs so that objects deleted from the database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output and remove empty directories. Not required when using the --svndel or --gitdel option.")
         args_misc.add_argument('--clean', action="store_true", help="Adds DROP commands to the SQL output of all objects. WARNING: For overloaded function/aggregates, this adds drop commands for all versions to the single output file.")
         args_misc.add_argument('--orreplace', action="store_true", help="Modifies the function and view ddl files to replace CREATE with CREATE OR REPLACE.")
+        args_misc.add_argument('--remove_passwords', action="store_true", help="If roles are extracted (--getall or --getroles), this option will remove any password hashes from the resulting file.")
         args_misc.add_argument('--inserts', action="store_true", help="Dump data as INSERT commands (rather than COPY). Only useful with --getdata option.")
         args_misc.add_argument('--column_inserts', '--attribute_inserts', action="store_true", help="Dump data as INSERT commands with explicit column names (INSERT INTO table (column, ...) VALUES ...). Only useful with --getdata option.")
         args_misc.add_argument('--keep_dump', action="store_true", help="""Keep a permanent copy of the pg_dump file used to generate the export files. Will only contain schemas designated by original options and will NOT contain data even if --getdata is set. Note that other items filtered out by pg_extractor (including tables) will still be included in the dump file. File will be put in a folder called "dump" under --basedir. """)
@@ -748,8 +823,9 @@ class PGExtractor:
     # Run pg_dump command to generate ddl file
     ####
     def _run_pg_dump(self, o, output_file):
-        pg_dump_cmd = ["pg_dump", "--file="+output_file]
-        pg_dump_cmd.append("--table=" + o.get('objschema') + "." + o.get('objname'))
+        pg_dump_cmd = ["pg_dump", "--file=" + output_file]
+        pg_dump_cmd.append(r'--table="' + o.get('objschema') + r'"."' + o.get('objname') + r'"')
+
         if self.args and self.args.Fc:
             pg_dump_cmd.append("--format=custom")
         else:
@@ -757,7 +833,7 @@ class PGExtractor:
         if self.args and not self.args.getdata:
             pg_dump_cmd.append("--schema-only")
         if self.args and self.args.clean:
-            pg_dump_cmd.append("--clean")
+            pg_dump_cmd.append("--clean") 
         if self.args and self.args.no_acl:
             pg_dump_cmd.append("--no-acl")
         if self.args and self.args.no_owner:
@@ -856,23 +932,19 @@ class PGExtractor:
                 (self.args.owner_exclude != None and self.args.owner_exclude_file != None) ):
             print("Cannot set both a csv and file filter at the same time for the same object type.")
             sys.exit(2)
+
+        if self.args.remove_passwords:
+            if not self.args.getroles:
+                print("Cannot set --remove_passwords without setting either --getroles or --getall")
+                sys.exit(2)
     # end _set_config()
 
-
-
-    # Account for special characters
-    #def handle_special_chars(object_list)
-        # return special_char_list
-
-    #def git_commit()
-
-    #def svn commit()
 
 if __name__ == "__main__":
     p = PGExtractor()
     p._parse_arguments()
 
-    if p.args.version == True:
+    if p.args.version:
         p.print_version()
         sys.exit(1)
 
@@ -881,12 +953,14 @@ if __name__ == "__main__":
     main_object_list = p.build_main_object_list()
     filtered_list = p._filter_object_list(main_object_list)
     extracted_files_list = p.create_extract_files(filtered_list)
-    if p.args.getroles == True:
-        role_file = p.extract_roles(False)
+    if p.args.getroles:
+        role_file = p.extract_roles()
         extracted_files_list.append(role_file)
-    if p.args.delete == True:
+        if p.args.remove_passwords:
+            p.remove_passwords(role_file)
+    if p.args.delete:
         p.delete_files(extracted_files_list)
-    if p.args.orreplace == True:
+    if p.args.orreplace:
         p.or_replace()
 
 """
