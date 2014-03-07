@@ -14,6 +14,7 @@ pg_restore is only used for generating ddl and does not ever touch the database.
 Several of the class methods are public and can be used to inspect a custom format binary dump 
 file or apply some of the editing options.
 
+````
 Python 3.3.1 (default, Sep 25 2013, 19:29:01) 
 [GCC 4.7.3] on linux
 Type "help", "copyright", "credits" or "license" for more information.
@@ -27,6 +28,34 @@ Type "help", "copyright", "credits" or "license" for more information.
 {'objname': 'job_detail_p0', 'objid': '238; 1259 596233', 'objowner': 'keith', 'objtype': 'TABLE', 'objschema': 'jobmon'}
 {'objname': 'job_detail_p10', 'objid': '239; 1259 596244', 'objowner': 'keith', 'objtype': 'TABLE', 'objschema': 'jobmon'}
 ...
+````
 
 Remove the password hashes from an existing "pg_dumpall -r" roles file:
+````
 >>> p.remove_passwords("pg_dumpall_roles.sql")
+````
+
+### New Version 2.x
+
+Version 2.x is a complete rewrite of PG Extractor in python. Most of the configuration options are the same,
+but many have been changed for clarity, so please check the --help. 
+
+Non-compatibilities with 1.x to be aware of when dropping in 2.x to replace it
+ * The "hostname" is no longer a default part of the directory structure created. If this is still desired, set the --hostnamedir option with whatever the existing directory is.
+ * Built in version control options are gone. They were rather fragile options and could easily lead to a whole lot of things getting checked into version control that should not have been. I've found it's easier (and safer) to manage version control check-ins separately. If these are really wanted please create an Issue on github and I'll consider it if there's enough interest.
+ * Removed --rolesdir option
+
+New features:
+ * Full python Class object with public methods that may possibly be useful on existing dump files
+ * --jobs option to allow parallel object extraction
+ * --remove_passwords option can remove the password hashes from an extracted roles file
+ * --getdefaultprivs extracts the default privileges set for any roles that used ALTER DEFAULT PRIVILEGES
+ * --delete cleans up empty folders properly
+ * --wait option to allow a pause in object extraction. Helps reduce load when data is included in extraction.
+ * --temp option to allow setting custom temporary working space
+ * Sequences files can now include the statement to set the current value if data is output
+ *  Better support for when objects have mixed case names or special characters. Special characters in an object name turn into ***,hexcode,*** to allow a valid system filename.
+ * Rules & Triggers on views are now always included in the view file itself properly.
+
+*The version 1.x series written in perl will no longer be developed. Only bug fixes to the existing code will be accepted.*
+
