@@ -2,6 +2,10 @@
 use strict;
 use warnings;
 
+# The perl version 1.x series is no longer being developed. Only bug fixes to the existing code will be done.
+# Please see the new 2.x series written in python for the latest version and all new feature development.
+
+
 # PGExtractor, a script for doing advanced dump filtering and managing schema for PostgreSQL databases
 # See complete license and copyright information at the bottom of this script
 # For newer versions of this script, please see:

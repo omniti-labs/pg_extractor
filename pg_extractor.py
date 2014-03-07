@@ -5,7 +5,8 @@ if sys.version_info[0] != 3:
     print("This script requires Python version 3.0 or greater")
     sys.exit(2)
 
-import argparse, errno, fileinput, os, os.path, re, shutil, socket, subprocess, tempfile
+import argparse, errno, fileinput, os, os.path, random, re, shutil, socket, subprocess, tempfile, time
+from multiprocessing import Process
 
 class PGExtractor:
     """
@@ -28,7 +29,7 @@ class PGExtractor:
         """
         Build a list of all objects contained in the dump file 
 
-        * restore_file: path to a custom format (-Fc) pg_dump file 
+        * restore_file: full path to a custom format (-Fc) pg_dump file 
 
         Returns a list containing a dictionary object for each line obtained when running pg_restore -l
         """
@@ -42,9 +43,9 @@ class PGExtractor:
             print("Error in pg_restore when generating main object list: " + str(e.cmd))
 
         p_objid = '\d+;\s\d+\s\d+'
-        # Actual types extracted is controlled in create_extract_files(). This is list format mapping choices
+        # Actual types extracted is controlled in create_extract_files(). This is list format mapping choices.
         # Order of this list matters if the string starts with the same word (ex TABLE DATA before TABLE).
-        # Last object in list like this cannot have a space in it.
+        # Last object in this list cannot have a space in it.
         # If an object type is missing, please let me know and I'll add it.
         p_types = "ACL|AGGREGATE|COMMENT|CONSTRAINT|DATABASE|DEFAULT\sACL|DEFAULT|"
         p_types += "EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
@@ -82,12 +83,12 @@ class PGExtractor:
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>.*\))\s'
                 r'(?P<objowner>\S+)')
-        #TODO p_default_acl_mapping = 
-        # 8253; 826 31309 DEFAULT ACL affiliate DEFAULT PRIVILEGES FOR SEQUENCES postgres
-        # 8254; 826 31310 DEFAULT ACL affiliate DEFAULT PRIVILEGES FOR TABLES postgres
-        # objid, objtype, objschema, objstatement, objsubtype, objrole
-        # TODO See what these do
-        # 11666; 2604 22460 DEFAULT public id web
+        p_default_acl_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>DEFAULT ACL)\s'
+                r'(?P<objschema>\S+)\s'
+                r'(?P<objstatement>DEFAULT PRIVILEGES FOR)\s'
+                r'(?P<objsubtype>\S+)\s'
+                r'(?P<objrole>\S+)')
         if self.args and self.args.debug:
             print("\nPG_RESTORE LIST:")
             for o in restore_object_list:
@@ -157,6 +158,17 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
+                if obj_type.group('type').strip() == "DEFAULT ACL":
+                    obj_mapping = p_default_acl_mapping.match(o)
+                    object_dict = dict([('objid', obj_mapping.group('objid'))
+                        , ('objtype', obj_mapping.group('objtype'))
+                        , ('objschema', obj_mapping.group('objschema'))
+                        , ('objstatement', obj_mapping.group('objstatement'))
+                        , ('objsubtype', obj_mapping.group('objsubtype'))
+                        , ('objrole', obj_mapping.group('objrole'))
+                        ])
+                    main_object_list.append(object_dict)
+                    continue
                 # all the other common object formats
                 obj_mapping = p_object_mapping.match(o)
                 object_dict = dict([('objid', obj_mapping.group('objid'))
@@ -241,9 +253,14 @@ class PGExtractor:
 
         acl_list = self.build_type_object_list(object_list, ["ACL"])
         comment_list = self.build_type_object_list(object_list, ["COMMENT"])
+        process_list = []
+        process_count = 0
 
         # Objects extracted with pg_dump
-        for o in self.build_type_object_list(object_list, ["TABLE", "VIEW", "FOREIGN TABLE"]):
+        pgdump_list = self.build_type_object_list(object_list, ["TABLE", "VIEW", "FOREIGN TABLE"])
+        if len(pgdump_list) > 0 and self.args and not self.args.quiet:
+            print("Extracting tables...")
+        for o in pgdump_list:
             output_file = target_dir
             if self.args and self.args.schemadir:
                 if o.get('objschema') != "-":
@@ -263,11 +280,39 @@ class PGExtractor:
             output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
             extract_file_list.append(output_file)
             # TODO Do parallel dump stuff here
-            self._run_pg_dump(o, output_file)
+            if self.args and self.args.jobs > 0:
+                p = Process(target=self._run_pg_dump, args=([o, output_file]))
+                if self.args and self.args.debug:
+                    print("PG_DUMP PROCESS CREATED: " + str(p.name))
+                process_list.append(p)
+                if (len(process_list) % self.args.jobs) == 0:
+                    if self.args and self.args.debug:
+                        print("PG_DUMP PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                    for j in process_list:
+                        j.start()
+                    for j in process_list:
+                        j.join()
+                    process_list = []
+                process_count += 1
+            else:
+                self._run_pg_dump(o, output_file)
+        # If --jobs value was not reached, finish off any that were left in the queue
+        if len(process_list) > 0:
+            if self.args and self.args.debug:
+                print("PG_DUMP PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+            for j in process_list:
+                j.start()
+            for j in process_list:
+                j.join()
+
 
         # Objects that can be overloaded
+        process_list = []
+        process_count = 0
         func_agg_list = self.build_type_object_list(object_list, ["FUNCTION", "AGGREGATE"])
         dupe_list = func_agg_list
+        if len(func_agg_list) > 0 and self.args and not self.args.quiet:
+            print("Extracting functions & aggregates...")
         for o in func_agg_list:
             output_file = target_dir
             if self.args and self.args.schemadir:
@@ -305,16 +350,42 @@ class PGExtractor:
                         restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
                         restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
                         fh.write(restore_line)
-            # http://stackoverflow.com/questions/1207406/remove-items-from-a-list-while-iterating-in-python
-            # Loops through currently iterating list and removes all overloads that match the current basename
-            func_agg_list[:] = [f for f in func_agg_list if f.get('objbasename') != o.get('objbasename')]
             fh.close()
-            self._run_pg_restore(tmp_restore_list.name, output_file)
+            if self.args and self.args.jobs > 0:
+                p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
+                if self.args and self.args.debug:
+                    print("PG_RESTORE FUNCTIONS PROCESS CREATED: " + str(p.name))
+                process_list.append(p)
+                if (len(process_list) % self.args.jobs) == 0:
+                    if self.args and self.args.debug:
+                        print("PG_RESTORE FUNCTIONS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                    for j in process_list:
+                        j.start()
+                    for j in process_list:
+                        j.join()
+                    process_list = []
+                process_count += 1
+            else:
+                self._run_pg_restore(tmp_restore_list.name, output_file)
+        # If --jobs value was not reached, finish off any that were left in the queue
+        if len(process_list) > 0:
+            if self.args and self.args.debug:
+                print("PG_RESTORE FUNCTIONS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+            for j in process_list:
+                j.start()
+            for j in process_list:
+                j.join()
+
 
         # Sequences are special little snowflakes
+        process_list = []
+        process_count = 0
         if self.args and self.args.getsequences:
+            sequence_list = self.build_type_object_list(object_list, ["SEQUENCE"])
             dupe_list = self.build_type_object_list(object_list, ["SEQUENCE SET", "SEQUENCE OWNED BY"])
-            for o in self.build_type_object_list(object_list, ["SEQUENCE"]):
+            if len(sequence_list) > 0 and self.args and not self.args.quiet:
+                print("Extracting sequences...")
+            for o in sequence_list:
                 output_file = target_dir
                 if self.args and self.args.schemadir:
                     if o.get('objschema') != "-":
@@ -347,10 +418,85 @@ class PGExtractor:
                         restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
                         fh.write(restore_line)
                 fh.close()
-                self._run_pg_restore(tmp_restore_list.name, output_file)
+                if self.args and self.args.jobs > 0:
+                    p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
+                    if self.args and self.args.debug:
+                        print("PG_RESTORE SEQUENCE PROCESS CREATED: " + str(p.name))
+                    process_list.append(p)
+                    if (len(process_list) % self.args.jobs) == 0:
+                        if self.args and self.args.debug:
+                            print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(len(process_count)))
+                        for j in process_list:
+                            j.start()
+                        for j in process_list:
+                            j.join()
+                        process_list = []
+                    process_count += 1
+                else:
+                    self._run_pg_restore(tmp_restore_list.name, output_file)
+            # If --jobs value was not reached, finish off any that were left in the queue
+            if len(process_list) > 0:
+                if self.args and self.args.debug:
+                    print("PG_RESTORE SEQUENCE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                for j in process_list:
+                    j.start()
+                for j in process_list:
+                    j.join()
+
+
+        process_list = []
+        process_count = 0
+        # Default privileges for roles
+        if self.args and self.args.getdefaultprivs:
+            acl_default_list = self.build_type_object_list(object_list, ["DEFAULT ACL"])
+            dupe_list = acl_default_list
+            if len(acl_default_list) > 0 and self.args and not self.args.quiet:
+                print("Extracting default privileges...")
+            for o in acl_default_list:
+                output_file = self.create_dir(os.path.join(target_dir, "roles"))
+                output_file = os.path.join(output_file, o.get('objrole') + ".sql")
+                extract_file_list.append(output_file)
+                fh = open(tmp_restore_list.name, 'w')
+                for d in dupe_list:
+                    if o.get('objrole') == d.get('objrole'):
+                        restore_line =  d.get('objid') + " " + d.get('objtype') + " " + d.get('objschema')
+                        restore_line += " " + d.get('objstatement') + " " + d.get('objrole') + "\n"
+                        fh.write(restore_line)
+                fh.close()
+                if self.args and self.args.jobs > 0:
+                    p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
+                    if self.args and self.args.debug:
+                        print("PG_RESTORE DEFAULT PRIVS PROCESS CREATED: " + str(p.name))
+                    process_list.append(p)
+                    if (len(process_list) % self.args.jobs) == 0:
+                        if self.args and self.args.debug:
+                            print("PG_RESTORE DEFAULT PRIVS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                        for j in process_list:
+                            j.start()
+                        for j in process_list:
+                            j.join()
+                        process_list = []
+                    process_count += 1
+                else:
+                    self._run_pg_restore(tmp_restore_list.name, output_file)
+            # If --jobs value was not reached, finish off any that were left in the queue
+            if len(process_list) > 0:
+                if self.args and self.args.debug:
+                    print("PG_RESTORE DEFAULT PRIVS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                for j in process_list:
+                    j.start()
+                for j in process_list:
+                    j.join()
+
+
 
         # All other objects extracted via _run_pg_restore()
-        for o in self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE"]):
+        process_list = []
+        process_count = 0
+        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE"])
+        if len(other_object_list) > 0 and self.args and not self.args.quiet:
+            print("Extracting remaining objects...")
+        for o in other_object_list:
             output_file = target_dir
             if self.args and self.args.schemadir:
                 if o.get('objschema') != "-":
@@ -404,7 +550,31 @@ class PGExtractor:
                     restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
                     fh.write(restore_line)
             fh.close()
-            self._run_pg_restore(tmp_restore_list.name, output_file)
+            if self.args and self.args.jobs > 0:
+                p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
+                if self.args and self.args.debug:
+                    print("PG_RESTORE PROCESS CREATED: " + str(p.name))
+                process_list.append(p)
+                if (len(process_list) % self.args.jobs) == 0:
+                    if self.args and self.args.debug:
+                        print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                    for j in process_list:
+                        j.start()
+                    for j in process_list:
+                        j.join()
+                    process_list = []
+                process_count += 1
+            else:
+                self._run_pg_restore(tmp_restore_list.name, output_file)
+            # If --jobs value was not reached, finish off any that were left in the queue
+            if len(process_list) > 0:
+                if self.args and self.args.debug:
+                    print("PG_RESTORE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                for j in process_list:
+                    j.start()
+                for j in process_list:
+                    j.join()
+
 
         if self.args and self.args.debug:
             print("\nEXTRACT FILE LIST")
@@ -548,16 +718,65 @@ class PGExtractor:
             print("Given role file does not exist: " + role_file)
     # end remove_passwords()
 
+    def show_examples(self):
+        print("""
+        Basic minimum usage. 
+        This will extract all tables, functions/aggregates, views, types & roles. 
+        It uses the directory that pg_extractor is run from as the base directory 
+        (objects will be found in ./mydb/) and will also produce a permanent copy 
+        of the pg_dump file that the objects were extracted from.  It expects the 
+        locations of the postgres binaries to be in the $PATH.
+
+            python3 pg_extractor.py -U postgres -d mydb --getall --keep_dump
+
+        Extract only functions from the "keith" schema
+
+            python3 pg_extractor.py -U postgres -d mydb --getfuncs -n keith
+
+        Extract only specifically named functions in the given filename (newline 
+        separated list). Ensure the full function signature is given with only 
+        the variable types for arguments. Since the functions desired are all 
+        in one schema, setting the -n option speeds it up a little since it only 
+        has to dump out a single schema to the temp dump file that is used.
+
+            python3 pg_extractor.pl -U postgres --dbname=mydb --getfuncs 
+                --include_functions_file=/home/postgres/func_incl -n dblink
+
+             func_incl file contains:
+             dblink.dblink_exec(text, text)
+             dblink.dblink_exec(text, text, boolean)
+             dblink.dblink_exec(text)
+             dblink.dblink_exec(text, boolean)
+
+        Extract only the tables listed in the given filename list) along 
+        with the data in the pg_dump custom format.
+
+            python3 pg_extractor.py -U postgres --dbname=mydb --gettables -Fc 
+                -tf /home/postgres/tbl_incl --getdata
+
+        Using an options file
+
+            python3 pg_extractor.py @options_file.txt
+        """)
+
+
 ######################################################################################
 #
 # PRIVATE METHODS
 #
 ######################################################################################
 
-    ####
-    # Built a usable list object from a filter argument
-    ####
     def _build_filter_list(self, list_type, list_items, list_prefix="#none#"):
+        """
+        Build a list object based on script filter arguments
+
+        * list_type: Format that the list_items paramter is in ("csv" or "file")
+        * list_items: either a csv list of items or a file with line separated items
+        * list_prefix: a string that is placed on the front of every item in the result list
+            Ex: put "-n " before every item for schema filtering the pg_dump command
+
+        Returns list_items as a list object
+        """
         split_list = []
         if list_type == "csv":
             split_list = list_items.split(',')
@@ -580,10 +799,11 @@ class PGExtractor:
             return (list_prefix + list_prefix.join(split_list)).strip()
     # end _build_filter_list()
 
-    ####
-    # Create the temp dump file used for rest of script runtime
-    ####
+
     def _create_temp_dump(self):
+        """
+        Create the temp dump file used for rest of script runtime.
+        """
         if not self.args.quiet: 
             print("Creating temp dump file...")
         pg_dump_cmd = ["pg_dump"]
@@ -633,10 +853,15 @@ class PGExtractor:
                 print("Error during creation of --keep_dump file: " + e.strerror + ": " + e.filename)
     # end _create_temp_dump()
 
-    ####
-    # Filter a dictionary list of objects generated from a pg_restore file
-    ####
+
     def _filter_object_list(self, main_object_list):
+        """
+        Apply any filter arguments that were given to the main object list generated from a pg_restore file
+
+        * main_object_list: dictionary list generated by build_main_object_list
+
+        Returns a dictionary list in the same format as was input, but with all active filters applied.
+        """
         filtered_list = []
         regex_exclude_list = []
         regex_include_list = []
@@ -747,11 +972,13 @@ class PGExtractor:
         return filtered_list
     # end _filter_object_list()
 
-    ####
-    # Parse command line arguments
-    ####
+
     def _parse_arguments(self):
-        self.parser = argparse.ArgumentParser(description="A script for doing advanced dump filtering and managing schema for PostgreSQL databases. See NOTES section at the top of the script source for more details and examples.")
+        """
+        Parse command line arguments. 
+        Sets self.args parameter for use throughout class/script.
+        """
+        self.parser = argparse.ArgumentParser(description="A script for doing advanced dump filtering and managing schema for PostgreSQL databases. See NOTES section at the top of the script source for more details and examples.", epilog="NOTE: You can pass arguments via a file by passing the filename prefixed with an @ (instead of dashes). Each argument must be on its own line and its recommended to use the double-dash (--) options to make the formatting easiest. Ex: @argsfile.txt", fromfile_prefix_chars="@")
         args_conn = self.parser.add_argument_group(title="Database Connection")
         args_conn.add_argument('--host', default=socket.gethostname(), help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. (Default: Result of socket.gethostname())")
         args_conn.add_argument('-p', '--port', default="5432", help="Database server port. Can also set with the PGPORT environment variable.")
@@ -764,23 +991,23 @@ class PGExtractor:
         args_dir.add_argument('--basedir', default=os.getcwd(), help="Base directory for ddl export. (Default: directory pg_extractor is run from)")
         args_dir.add_argument('--hostnamedir', help="Optional hostname of the database server used as directory name under --basedir to help with organization.")
         args_dir.add_argument('--schemadir', action="store_true", help="Breakout each schema's content into subdirectories under the database directory (.../database/schema/...)")
-        args_dir.add_argument('--rolesdir', help="Name of the directory under database name to place the export file with role data. No impact without the --getroles or --getall option.")
         args_dir.add_argument('--pgbin', help="Full folder path of the required postgresql binaries if not located in $PATH: pg_dump, pg_restore, pg_dumpall.")
         args_dir.add_argument('--temp', help="Full folder path to use as temporary space. Defaults to system designated temporary space.")
 
-        args_filter = self.parser.add_argument_group(title="Filters")
+        args_filter = self.parser.add_argument_group(title="Filters", description="All object names given in any filter MUST be fully schema qualified.")
         args_filter.add_argument('--getall', action="store_true", help="Exports all tables, views, functions, types and roles. Shortcut to setting almost all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).")
-        args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl.")
-        args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers.")
-        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl. Each file includes all rules & triggers.")
-        args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions.")
-        args_filter.add_argument('--gettypes', action="store_true", help="Export custom types.")
-        args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control.")
+        args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl. Included in --getall.")
+        args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers. Included in --getall.")
+        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl. Each file includes all rules & triggers. Included in --getall.")
+        args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions. Included in --getall.")
+        args_filter.add_argument('--gettypes', action="store_true", help="Export custom types. Included in --getall.")
+        args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
+        args_filter.add_argument('--getdefaultprivs', action="store_true", help="Export all the default privilges for roles if they have been set. See the ALTER DEFAULT PRIVILEGES statement for how these are set. Theese are extracted to the same 'roles' folder that --getroles uses. Included in --getall.")
         args_filter.add_argument('--getsequences', action="store_true", help="If you need to export unowned sequences, set this option. Note that this will export both owned and unowned sequences to the separate sequence folder. --gettables or --getall will include any sequence that is owned by a table in that table's output file as well. Current sequence values can only be included in the extracted file if --getdata is set.")
         args_filter.add_argument('--gettriggers', action="store_true", help="If you need to export triggers definitions separately, use this option. This does not export the trigger function, just the CREATE TRIGGER statement. Use --getfuncs to get trigger functions. Note that trigger definitions are also included in their associated object files (tables, views, etc).")
         args_filter.add_argument('--getrules', action="store_true", help="If you need to export rules separately, set this option. Note that rules will also still be included in their associated object files (tables, views, etc).")
         args_filter.add_argument('--getdata', action="store_true", help="Include data in the output files. Format will be plaintext (-Fp) unless -Fc option is explicitly given. Note this option can cause a lot of extra disk space usage while the script is being run. At minimum make sure you have enough space for 3 full dumps of the database to account for all other options that can be set.")
-        args_filter.add_argument('-Fc', '--Fc', action="store_true", help="Output in pg_dump custom format (useful with --getdata). Otherwise, default is always plaintext (-Fp) format.")
+        args_filter.add_argument('-Fc', '--Fc', action="store_true", help="Output in pg_dump custom format. Only applies to tables and views. Otherwise, default is always plaintext (-Fp) format.")
         args_filter.add_argument('-n', '--schema_include', help="CSV list of schemas to INCLUDE. Object in only these schemas will be exported.")
         args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported.")
         args_filter.add_argument('-N', '--schema_exclude', help="CSV list of schemas to EXCLUDE. All objects in these schemas will be ignored. If both -n and -N are set, pg_extractor follows the same rules as pg_dump for such a case.")
@@ -805,6 +1032,7 @@ class PGExtractor:
         args_filter.add_argument('-x', '--no_acl', '--no_privileges', action="store_true", help="Prevent dumping of access privileges (grant/revoke commands")
 
         args_misc = self.parser.add_argument_group(title="Misc")
+        args_misc.add_argument('-j','--jobs', type=int, default=0, help="Allows parallel running extraction jobs. Set this equal to the number of processors you want to use to allow that many jobs to start simultaneously. This uses multiprocessing library, not threading.")
         args_misc.add_argument('--delete', action="store_true", help="Use when running again on the same destination directory as previous runs so that objects deleted from the database or items that don't match your filters also have their old files deleted. WARNING: This WILL delete ALL .sql files in the destination folder(s) which don't match your desired output and remove empty directories. Not required when using the --svndel or --gitdel option.")
         args_misc.add_argument('--clean', action="store_true", help="Adds DROP commands to the SQL output of all objects. WARNING: For overloaded function/aggregates, this adds drop commands for all versions to the single output file.")
         args_misc.add_argument('--orreplace', action="store_true", help="Modifies the function and view ddl files to replace CREATE with CREATE OR REPLACE.")
@@ -812,17 +1040,22 @@ class PGExtractor:
         args_misc.add_argument('--inserts', action="store_true", help="Dump data as INSERT commands (rather than COPY). Only useful with --getdata option.")
         args_misc.add_argument('--column_inserts', '--attribute_inserts', action="store_true", help="Dump data as INSERT commands with explicit column names (INSERT INTO table (column, ...) VALUES ...). Only useful with --getdata option.")
         args_misc.add_argument('--keep_dump', action="store_true", help="""Keep a permanent copy of the pg_dump file used to generate the export files. Will only contain schemas designated by original options and will NOT contain data even if --getdata is set. Note that other items filtered out by pg_extractor (including tables) will still be included in the dump file. File will be put in a folder called "dump" under --basedir. """)
+        args_misc.add_argument('-w','--wait', default=0, type=float, help="Cause the script to pause for a given number of seconds between each object extraction. If --jobs is set, this is the wait time between parallel job batches. If dumping data, this can help to reduce write load.")
         args_misc.add_argument('-q', '--quiet', action="store_true", help="Suppress all program output.")
         args_misc.add_argument('--version', action="store_true", help="Print the version number of pg_extractor.")
+        args_misc.add_argument('--examples', action="store_true", help="Print out examples of command line usage.")
         args_misc.add_argument('--debug', action="store_true", help="Provide additional output to aid in debugging. Please run with this enabled and provide all results when reporting any issues.")
-
         self.args = self.parser.parse_args()
     # end _parse_arguments()
 
-    ####
-    # Run pg_dump command to generate ddl file
-    ####
+
     def _run_pg_dump(self, o, output_file):
+        """
+        Run pg_dump for a single object obtained from parsing a pg_restore -l list
+
+        * o: a single object in the dictionary format generated by build_main_object_list
+        * output_file: target output file that pg_dump writes to
+        """
         pg_dump_cmd = ["pg_dump", "--file=" + output_file]
         pg_dump_cmd.append(r'--table="' + o.get('objschema') + r'"."' + o.get('objname') + r'"')
 
@@ -849,12 +1082,19 @@ class PGExtractor:
         except subprocess.CalledProcessError as e:
             print("Error in pg_dump command while creating extract file: " + str(e.cmd))
             sys.exit(2)
+        if self.args.wait > 0:
+            time.sleep(self.args.wait)
     # end _run_pg_dump()
 
-    ####
-    # Run pg_restore command to generate ddl file
-    ####
+
     def _run_pg_restore(self, list_file, output_file):
+        """
+        Run pg_restore using a file that can be fed to it using the -L option. 
+        Assumes a temporary dumpfile was create via _create_temp_dump() and uses that
+
+        * list_file: file containing objects obtained from pg_restore -l that will be restored
+        * output_file: target output file that pg_restore writes to
+        """
         if self.args.debug:
             fh = open(list_file, 'r')
             print("\nRESTORE LIST FILE CONTENTS")
@@ -873,12 +1113,15 @@ class PGExtractor:
         except subprocess.CalledProcessError as e:
             print("Error in pg_restore command while creating extract file: " + str(e.cmd))
             sys.exit(2)
+        if self.args.wait > 0:
+            time.sleep(self.args.wait)
     # end _run_pg_restore()
 
-    ####
-    # Set config options for rest of script runtime
-    ####
+
     def _set_config(self):
+        """
+        Set any configuration options needed for the rest of the script to run
+        """
         if self.args.temp == None:
             self.tmp_dump_file = tempfile.NamedTemporaryFile(prefix='pg_extractor')
         else:
@@ -911,14 +1154,15 @@ class PGExtractor:
         self.create_dir(self.args.basedir)
 
         if self.args.getall:
-            self.args.getschemata = True;
-            self.args.gettables = True;
-            self.args.getfuncs = True;
-            self.args.getviews = True;
-            self.args.gettypes = True;
-            self.args.getroles = True;
-        elif any([a for a in (self.args.getschemata,self.args.gettables,self.args.getfuncs,self.args.getviews
-            ,self.args.gettypes,self.args.getroles,self.args.getsequences,self.args.gettriggers,self.args.getrules)]):
+            self.args.getschemata = True
+            self.args.gettables = True
+            self.args.getfuncs = True
+            self.args.getviews = True
+            self.args.gettypes = True
+            self.args.getroles = True
+            self.args.getdefaultprivs = True
+        elif any([a for a in (self.args.getschemata,self.args.gettables,self.args.getfuncs,self.args.getviews,self.args.gettypes
+            ,self.args.getroles,self.args.getdefaultprivs,self.args.getsequences,self.args.gettriggers,self.args.getrules)]):
             pass # Do nothing since at least one output option was set
         else:
             print("No extraction options set. Must set --getall or one of the other --get<object> arguments.")
@@ -948,6 +1192,10 @@ if __name__ == "__main__":
         p.print_version()
         sys.exit(1)
 
+    if p.args.examples:
+        p.show_examples()
+        sys.exit(1)
+
     p._set_config()
     p._create_temp_dump()
     main_object_list = p.build_main_object_list()
@@ -962,6 +1210,13 @@ if __name__ == "__main__":
         p.delete_files(extracted_files_list)
     if p.args.orreplace:
         p.or_replace()
+
+    spline = random.randint(1,10000)
+    if spline > 9000 and not p.args.quiet:
+        print("Reticulating splines...")
+
+    if not p.args.quiet:
+        print("Done")
 
 """
 LICENSE AND COPYRIGHT

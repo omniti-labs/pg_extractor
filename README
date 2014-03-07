@@ -1,6 +1,0 @@
-PGExtractor is designed to give more advanced filtering options to pg_dump. It dumps each object (table, function, view, etc) out into its own file instead of one single dump file. This makes using the dumps as a reference easier and allows integration with a VCS (currently svn & git). By default data is not dumped, but is easily done with a single option and can be done as plaintext or pg_dump's custom format. Object filtering can be done directly via command line options or fed in with external text files. Regex pattern matching is also possible.
-
-See --help for a full list of available options. EXAMPLES section of the help gives some demonstration of using the program.
-Documentation is contained within the script and done in POD format. "help" file is generated via pod2text. 
-
-The script only uses pg_dump/all to touch the database. pg_restore is only used for generating ddl and does not ever touch the database. Please report any bugs!
