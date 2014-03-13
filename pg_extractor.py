@@ -73,15 +73,20 @@ class PGExtractor:
                 r'(?P<objname>\S+)\s'
                 r'(?P<objowner>\S+)')
         p_comment_extension_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
-                r'(?P<objtype>\S+)\s'
-                r'(?P<objschema>\S+)\s'
+                r'(?P<objtype>COMMENT)\s'
+                r'(?P<objdash>\S+)\s'
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>\S+)\s')
         p_comment_function_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
-                r'(?P<objtype>\S+)\s'
+                r'(?P<objtype>COMMENT)\s'
                 r'(?P<objschema>\S+)\s'
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>.*\))\s'
+                r'(?P<objowner>\S+)')
+        p_comment_dash_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>COMMENT)\s'
+                r'(?P<objsubtype>\-)\s'
+                r'(?P<objname>\S+)\s'
                 r'(?P<objowner>\S+)')
         p_default_acl_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>DEFAULT ACL)\s'
@@ -123,7 +128,7 @@ class PGExtractor:
                     main_object_list.append(object_dict)
                     continue
                 if obj_type.group('type').strip() == "COMMENT":
-                    if re.match(p_objid + r'\s\S+\s\S+\s(FUNCTION|AGGREGATE)', o):
+                    if re.match(p_objid + r'\s\COMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
                         obj_mapping = p_comment_function_mapping.match(o)
                         objname = obj_mapping.group('objname')
                         basename = objname[:objname.find("(")]
@@ -137,13 +142,23 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
-                    elif re.match(p_objid + r'\s\S+\s\-\sEXTENSION', o):
+                    elif re.match(p_objid + r'\s\COMMENT\s\-\sEXTENSION', o):
                         obj_mapping = p_comment_extension_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
-                            , ('objschema', obj_mapping.group('objschema'))
+                            , ('objdash', obj_mapping.group('objdash'))
                             , ('objsubtype', obj_mapping.group('objsubtype'))
                             , ('objname', obj_mapping.group('objname'))
+                            ])
+                        main_object_list.append(object_dict)
+                        continue
+                    elif re.match(p_objid + r'\s\COMMENT\s\-\s', o):
+                        obj_mapping = p_comment_dash_mapping.match(o)
+                        object_dict = dict([('objid', obj_mapping.group('objid'))
+                            , ('objtype', obj_mapping.group('objtype'))
+                            , ('objsubtype', obj_mapping.group('objsubtype'))
+                            , ('objname', obj_mapping.group('objname'))
+                            , ('objowner', obj_mapping.group('objowner'))
                             ])
                         main_object_list.append(object_dict)
                         continue
@@ -279,7 +294,6 @@ class PGExtractor:
             objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
             output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
             extract_file_list.append(output_file)
-            # TODO Do parallel dump stuff here
             if self.args and self.args.jobs > 0:
                 p = Process(target=self._run_pg_dump, args=([o, output_file]))
                 if self.args and self.args.debug:
@@ -411,12 +425,11 @@ class PGExtractor:
                         restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
                         fh.write(restore_line)
                 for c in comment_list:
-                    if c.get('objsubtype') == "EXTENSION":
-                        continue    # avoid weird extension comment format
-                    if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
-                        restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                        restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
-                        fh.write(restore_line)
+                    if re.search(r'SEQUENCE', c.get('objsubtype')):
+                        if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
+                            restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
+                            restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
+                            fh.write(restore_line)
                 fh.close()
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
@@ -543,12 +556,11 @@ class PGExtractor:
                     restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
                     fh.write(restore_line)
             for c in comment_list:
-                if c.get('objsubtype') == "EXTENSION":
-                    continue    # avoid weird extension comment format
-                if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
-                    restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                    restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
-                    fh.write(restore_line)
+                if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE)', c.get('objsubtype')):
+                    if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
+                        restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
+                        restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
+                        fh.write(restore_line)
             fh.close()
             if self.args and self.args.jobs > 0:
                 p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
