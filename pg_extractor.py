@@ -403,7 +403,7 @@ class PGExtractor:
                 output_file = target_dir
                 if self.args and self.args.schemadir:
                     if o.get('objschema') != "-":
-                        output_file = os.path.join(output_file, self.create_dir(o.get('objschema')))
+                        output_file = self.create_dir(os.path.join(output_file, o.get('objschema')))
                 output_file = self.create_dir(os.path.join(output_file, 'sequences'))
                 # replace any non-alphanumeric characters with ",hexcode,"
                 objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
@@ -513,7 +513,7 @@ class PGExtractor:
             output_file = target_dir
             if self.args and self.args.schemadir:
                 if o.get('objschema') != "-":
-                    output_file = os.path.join(output_file, self.create_dir(o.get('objschema')))
+                    output_file = self.create_dir(os.path.join(output_file, o.get('objschema')))
 
             if o.get('objtype') == "RULE":
                 output_file = self.create_dir(os.path.join(output_file, 'rules'))
