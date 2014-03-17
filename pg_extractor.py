@@ -16,7 +16,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.0rc1"
+        self.version = "2.0.0rc2"
         self.args = False
 
 ######################################################################################
