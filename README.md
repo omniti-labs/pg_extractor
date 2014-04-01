@@ -41,12 +41,13 @@ Version 2.x is a complete rewrite of PG Extractor in python. Most of the configu
 but many have been changed for clarity, so please check the --help. 
 
 Non-compatibilities with 1.x to be aware of when dropping in 2.x to replace it
+ * Requires Python 3
  * The "hostname" is no longer a default part of the directory structure created. If this is still desired, set the --hostnamedir option with whatever the existing directory is.
  * Built in version control options are gone. They were rather fragile options and could easily lead to a whole lot of things getting checked into version control that should not have been. I've found it's easier (and safer) to manage version control check-ins separately. If these are really wanted please create an Issue on github and I'll consider it if there's enough interest.
  * Removed --rolesdir option
 
 New features:
- * Full python Class object with public methods that may possibly be useful on existing dump files
+ * Full Python 3 class object with public methods that may possibly be useful on existing dump files
  * --jobs option to allow parallel object extraction
  * --remove_passwords option can remove the password hashes from an extracted roles file
  * --getdefaultprivs extracts the default privileges set for any roles that used ALTER DEFAULT PRIVILEGES
