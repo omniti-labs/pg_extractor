@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 import sys
 
-if sys.version_info[0] != 3:
-    print("This script requires Python version 3.0 or greater")
-    sys.exit(2)
-
 import argparse, errno, fileinput, os, os.path, random, re, shutil, socket, subprocess, tempfile, time
 from multiprocessing import Process
 
@@ -838,16 +834,16 @@ class PGExtractor:
             if self.args.schema_include_file != None:
                 print("Cannot set both --schema_include & --schema_include_file arguments")
                 sys.exit(2)
-            pg_dump_cmd.append(_build_filter_list("csv", self.args.schema_include, " --schema="))
+            pg_dump_cmd.append(self._build_filter_list("csv", self.args.schema_include, " --schema="))
         elif self.args.schema_include_file != None:
-            pg_dump_cmd.append(_build_filter_list("file", self.args.schema_include_file, " --schema="))
+            pg_dump_cmd.append(self._build_filter_list("file", self.args.schema_include_file, " --schema="))
         if self.args.schema_exclude != None:
             if self.args.schema_exclude_file != None:
                 print("Cannot set both --schema_exclude & --schema_exclude_file arguments")
                 sys.exit(2)
-            pg_dump_cmd.append(_build_filter_list("csv", self.args.schema_exclude, " --exclude-schema="))
+            pg_dump_cmd.append(self._build_filter_list("csv", self.args.schema_exclude, " --exclude-schema="))
         elif self.args.schema_exclude_file != None:
-            pg_dump_cmd.append(_build_filter_list("file", self.args.schema_exclude_file, " --exclude-schema="))
+            pg_dump_cmd.append(self._build_filter_list("file", self.args.schema_exclude_file, " --exclude-schema="))
         # Table include/exclude done in _filter_object_list(). Doing it here excludes all other objects in the dump file.
         if self.args.debug:
             print(pg_dump_cmd)

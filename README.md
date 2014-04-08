@@ -11,6 +11,18 @@ See --help & --examples for a full list of available options and how to use the 
 The script only uses pg_dump/all to touch the database. 
 pg_restore is only used for generating ddl and does not ever touch the database.
 
+This script natively requires Python 3. The 3to2 script can be used to allow it work work with
+Python 2.7, but it will not always be guarenteed to work. https://pypi.python.org/pypi/3to2
+
+````
+$ 3to2 -w pg_extractor.py
+````
+
+Python 3 was chosen for its more consistent treatment of plaintext and binary file formats. 
+Since this is a text processing script, that consistency makes development easier and more 
+predictable. Also, Python 3 has been out since 2008 and all major OS distributions have packages 
+available, so I'm doing my small part to help drive adoption to the new major version.
+
 Several of the class methods are public and can be used to inspect a custom format binary dump 
 file or apply some of the editing options.
 

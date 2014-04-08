@@ -1,0 +1,3 @@
+2.0.1
+* Remove python 3 check at the top of the script. This allows the 3to2 conversion script to make a working version of pg_extractor for python 2.7 (https://pypi.python.org/pypi/3to2) (Github Issue #24)
+* Fixed broken option --schema_include, --schema_include_file, --schema_exclude, --schema_exlude_file. (Github Issue #25)
