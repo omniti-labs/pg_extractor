@@ -14,6 +14,7 @@ class PGExtractor:
     def __init__(self):
         self.version = "2.0.0"
         self.args = False
+        self.temp_filelist = []
 
 ######################################################################################
 #
@@ -257,10 +258,6 @@ class PGExtractor:
         if target_dir == "#default#":
             # Allows direct calls to this function to be able to have a working base directory
             target_dir = self.args.basedir
-        if self.args and self.args.temp != None:
-            tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp)
-        else:
-            tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list')
 
         acl_list = self.build_type_object_list(object_list, ["ACL"])
         comment_list = self.build_type_object_list(object_list, ["COMMENT"])
@@ -319,6 +316,7 @@ class PGExtractor:
         # Objects that can be overloaded
         process_list = []
         process_count = 0
+        tmp_restore_list = None
         func_agg_list = self.build_type_object_list(object_list, ["FUNCTION", "AGGREGATE"])
         dupe_list = func_agg_list
         if len(func_agg_list) > 0 and self.args and not self.args.quiet:
@@ -339,6 +337,11 @@ class PGExtractor:
             objbasename_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objbasename'))
             output_file = os.path.join(output_file, objschema_filename + "." + objbasename_filename + ".sql")
             extract_file_list.append(output_file)
+            if self.args and self.args.temp != None:
+                tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp, delete=False)
+            else:
+                tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
+            self.temp_filelist.append(tmp_restore_list.name)
             fh = open(tmp_restore_list.name, 'w')
             # loop over same list to find overloaded functions
             for d in dupe_list:
@@ -390,6 +393,7 @@ class PGExtractor:
         # Sequences are special little snowflakes
         process_list = []
         process_count = 0
+        tmp_restore_list = None
         if self.args and self.args.getsequences:
             sequence_list = self.build_type_object_list(object_list, ["SEQUENCE"])
             dupe_list = self.build_type_object_list(object_list, ["SEQUENCE SET", "SEQUENCE OWNED BY"])
@@ -406,6 +410,11 @@ class PGExtractor:
                 objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
                 output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
                 extract_file_list.append(output_file)
+                if self.args and self.args.temp != None:
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp, delete=False)
+                else:
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
+                self.temp_filelist.append(tmp_restore_list.name)
                 fh = open(tmp_restore_list.name, 'w')
                 restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
                 restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
@@ -434,7 +443,7 @@ class PGExtractor:
                     process_list.append(p)
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
-                            print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(len(process_count)))
+                            print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(process_count))
                         for j in process_list:
                             j.start()
                         for j in process_list:
@@ -455,6 +464,7 @@ class PGExtractor:
 
         process_list = []
         process_count = 0
+        tmp_restore_list = None
         # Default privileges for roles
         if self.args and self.args.getdefaultprivs:
             acl_default_list = self.build_type_object_list(object_list, ["DEFAULT ACL"])
@@ -465,6 +475,11 @@ class PGExtractor:
                 output_file = self.create_dir(os.path.join(target_dir, "roles"))
                 output_file = os.path.join(output_file, o.get('objrole') + ".sql")
                 extract_file_list.append(output_file)
+                if self.args and self.args.temp != None:
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp, delete=False)
+                else:
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
+                self.temp_filelist.append(tmp_restore_list.name)
                 fh = open(tmp_restore_list.name, 'w')
                 for d in dupe_list:
                     if o.get('objrole') == d.get('objrole'):
@@ -502,78 +517,85 @@ class PGExtractor:
         # All other objects extracted via _run_pg_restore()
         process_list = []
         process_count = 0
+        tmp_restore_list = None
         other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE"])
-        if len(other_object_list) > 0 and self.args and not self.args.quiet:
-            print("Extracting remaining objects...")
-        for o in other_object_list:
-            output_file = target_dir
-            if self.args and self.args.schemadir:
-                if o.get('objschema') != "-":
-                    output_file = self.create_dir(os.path.join(output_file, o.get('objschema')))
-
-            if o.get('objtype') == "RULE":
-                output_file = self.create_dir(os.path.join(output_file, 'rules'))
-                # replace any non-alphanumeric characters with ",hexcode,"
-                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
-                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
-                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
-
-            if o.get('objtype') == "SCHEMA":
+        if len(other_object_list) > 0:
+            if self.args and not self.args.quiet:
+                print("Extracting remaining objects...")
+            for o in other_object_list:
+                output_file = target_dir
                 if self.args and self.args.schemadir:
-                    output_file = self.create_dir(os.path.join(output_file, o.get('objname')))
+                    if o.get('objschema') != "-":
+                        output_file = self.create_dir(os.path.join(output_file, o.get('objschema')))
+
+                if o.get('objtype') == "RULE":
+                    output_file = self.create_dir(os.path.join(output_file, 'rules'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
+
+                if o.get('objtype') == "SCHEMA":
+                    if self.args and self.args.schemadir:
+                        output_file = self.create_dir(os.path.join(output_file, o.get('objname')))
+                    else:
+                        output_file = self.create_dir(os.path.join(output_file, 'schemata'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objname_filename + ".sql")
+
+                if o.get('objtype') == "TRIGGER":
+                    output_file = self.create_dir(os.path.join(output_file, 'triggers'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
+
+                if o.get('objtype') == "TYPE":
+                    output_file = self.create_dir(os.path.join(output_file, 'types'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
+
+                extract_file_list.append(output_file)
+                if self.args and self.args.temp != None:
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp, delete=False)
                 else:
-                    output_file = self.create_dir(os.path.join(output_file, 'schemata'))
-                # replace any non-alphanumeric characters with ",hexcode,"
-                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
-                output_file = os.path.join(output_file, objname_filename + ".sql")
-
-            if o.get('objtype') == "TRIGGER":
-                output_file = self.create_dir(os.path.join(output_file, 'triggers'))
-                # replace any non-alphanumeric characters with ",hexcode,"
-                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
-                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
-                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
-
-            if o.get('objtype') == "TYPE":
-                output_file = self.create_dir(os.path.join(output_file, 'types'))
-                # replace any non-alphanumeric characters with ",hexcode,"
-                objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
-                objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
-                output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
-
-            extract_file_list.append(output_file)
-            fh = open(tmp_restore_list.name, 'w')
-            restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
-            restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
-            fh.write(restore_line)
-            for a in acl_list:
-                if o.get('objschema') == a.get('objschema') and o.get('objname') == a.get('objname'):
-                    restore_line =  a.get('objid') + " " + a.get('objtype') + " " + a.get('objschema')
-                    restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
-                    fh.write(restore_line)
-            for c in comment_list:
-                if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE)', c.get('objsubtype')):
-                    if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
-                        restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                        restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
+                    tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
+                self.temp_filelist.append(tmp_restore_list.name)
+                fh = open(tmp_restore_list.name, 'w')
+                restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
+                restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
+                fh.write(restore_line)
+                for a in acl_list:
+                    if o.get('objschema') == a.get('objschema') and o.get('objname') == a.get('objname'):
+                        restore_line =  a.get('objid') + " " + a.get('objtype') + " " + a.get('objschema')
+                        restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
                         fh.write(restore_line)
-            fh.close()
-            if self.args and self.args.jobs > 0:
-                p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
-                if self.args and self.args.debug:
-                    print("PG_RESTORE PROCESS CREATED: " + str(p.name))
-                process_list.append(p)
-                if (len(process_list) % self.args.jobs) == 0:
+                for c in comment_list:
+                    if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE)', c.get('objsubtype')):
+                        if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
+                            restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
+                            restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
+                            fh.write(restore_line)
+                fh.close()
+                if self.args and self.args.jobs > 0:
+                    p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
                     if self.args and self.args.debug:
-                        print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
-                    for j in process_list:
-                        j.start()
-                    for j in process_list:
-                        j.join()
-                    process_list = []
-                process_count += 1
-            else:
-                self._run_pg_restore(tmp_restore_list.name, output_file)
+                        print("PG_RESTORE PROCESS CREATED: " + str(p.name))
+                    process_list.append(p)
+                    if (len(process_list) % self.args.jobs) == 0:
+                        if self.args and self.args.debug:
+                            print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                        for j in process_list:
+                            j.start()
+                        for j in process_list:
+                            j.join()
+                        process_list = []
+                    process_count += 1
+                else:
+                    self._run_pg_restore(tmp_restore_list.name, output_file)
             # If --jobs value was not reached, finish off any that were left in the queue
             if len(process_list) > 0:
                 if self.args and self.args.debug:
@@ -582,7 +604,7 @@ class PGExtractor:
                     j.start()
                 for j in process_list:
                     j.join()
-
+        # end if block for other_object_list
 
         if self.args and self.args.debug:
             print("\nEXTRACT FILE LIST")
@@ -806,6 +828,22 @@ class PGExtractor:
             # returns a string prepended to each list item (used by pg_dump/restore commands)
             return (list_prefix + list_prefix.join(split_list)).strip()
     # end _build_filter_list()
+
+
+    def _cleanup_temp_files(self):
+        """
+        Cleanup temporary files left behind by pg_restore. 
+        They are not cleaned up automatically because they must be referenced after 
+        the file is closed for writing.
+        Processes in the script add to the the global list variable temp_filelist 
+        declared in constructor.
+        """
+        if self.args.debug:
+            print("\nCLEANUP TEMP FILES")
+        for f in self.temp_filelist:
+            if self.args.debug:
+                print(f)
+            os.remove(f)
 
 
     def _create_temp_dump(self):
@@ -1222,6 +1260,8 @@ if __name__ == "__main__":
     spline = random.randint(1,10000)
     if spline > 9000 and not p.args.quiet:
         print("Reticulating splines...")
+
+    p._cleanup_temp_files()
 
     if not p.args.quiet:
         print("Done")

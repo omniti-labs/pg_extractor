@@ -1,3 +1,7 @@
+2.0.2
+* Fixed errors being thrown when --jobs option was used to extract schemas, rules, triggers, sequences, or types (Github Issue #26)
+* Fixed incorrect contents being output into extracted files when --jobs option was being used. If you were using --jobs option before, please re-run script again to fix any incorrect file contents. (Discovered when fixing Github Issue #26)
+
 2.0.1
 * Remove python 3 check at the top of the script. This allows the 3to2 conversion script to make a working version of pg_extractor for python 2.7 (https://pypi.python.org/pypi/3to2) (Github Issue #24)
 * Fixed broken option --schema_include, --schema_include_file, --schema_exclude, --schema_exlude_file. (Github Issue #25)
