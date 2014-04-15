@@ -814,7 +814,8 @@ class PGExtractor:
             try:
                 fh = open(list_items, 'r')
                 for line in fh:
-                    split_list.append(line.strip())
+                    if not line.strip().startswith('#'):
+                        split_list.append(line.strip())
             except IOError as e:
                print("Cannot access include/exclude file " + list_items + ": " + e.strerror)
                sys.exit(2)
