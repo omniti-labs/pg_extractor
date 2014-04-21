@@ -12,7 +12,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.0"
+        self.version = "2.0.3"
         self.args = False
         self.temp_filelist = []
 
@@ -814,7 +814,8 @@ class PGExtractor:
             try:
                 fh = open(list_items, 'r')
                 for line in fh:
-                    split_list.append(line.strip())
+                    if not line.strip().startswith('#'):
+                        split_list.append(line.strip())
             except IOError as e:
                print("Cannot access include/exclude file " + list_items + ": " + e.strerror)
                sys.exit(2)
@@ -825,8 +826,8 @@ class PGExtractor:
             # returns as an unaltered list object (used by _filter_object_list)
             return split_list
         else:
-            # returns a string prepended to each list item (used by pg_dump/restore commands)
-            return (list_prefix + list_prefix.join(split_list)).strip()
+            # returns a list with the 3rd parameter prepended to each item (used by pg_dump/restore commands)
+            return [(list_prefix + x) for x in split_list]
     # end _build_filter_list()
 
 
@@ -872,16 +873,20 @@ class PGExtractor:
             if self.args.schema_include_file != None:
                 print("Cannot set both --schema_include & --schema_include_file arguments")
                 sys.exit(2)
-            pg_dump_cmd.append(self._build_filter_list("csv", self.args.schema_include, " --schema="))
+            for s in self._build_filter_list("csv", self.args.schema_include, "--schema="):
+                pg_dump_cmd.append(s)
         elif self.args.schema_include_file != None:
-            pg_dump_cmd.append(self._build_filter_list("file", self.args.schema_include_file, " --schema="))
+            for s in self._build_filter_list("file", self.args.schema_include_file, "--schema="):
+                pg_dump_cmd.append(s)
         if self.args.schema_exclude != None:
             if self.args.schema_exclude_file != None:
                 print("Cannot set both --schema_exclude & --schema_exclude_file arguments")
                 sys.exit(2)
-            pg_dump_cmd.append(self._build_filter_list("csv", self.args.schema_exclude, " --exclude-schema="))
+            for s in self._build_filter_list("csv", self.args.schema_exclude, "--exclude-schema="):
+                pg_dump_cmd.append(s)
         elif self.args.schema_exclude_file != None:
-            pg_dump_cmd.append(self._build_filter_list("file", self.args.schema_exclude_file, " --exclude-schema="))
+            for s in self._build_filter_list("file", self.args.schema_exclude_file, "--exclude-schema="):
+                pg_dump_cmd.append(s)
         # Table include/exclude done in _filter_object_list(). Doing it here excludes all other objects in the dump file.
         if self.args.debug:
             print(pg_dump_cmd)
@@ -1055,25 +1060,25 @@ class PGExtractor:
         args_filter.add_argument('--getdata', action="store_true", help="Include data in the output files. Format will be plaintext (-Fp) unless -Fc option is explicitly given. Note this option can cause a lot of extra disk space usage while the script is being run. At minimum make sure you have enough space for 3 full dumps of the database to account for all other options that can be set.")
         args_filter.add_argument('-Fc', '--Fc', action="store_true", help="Output in pg_dump custom format. Only applies to tables and views. Otherwise, default is always plaintext (-Fp) format.")
         args_filter.add_argument('-n', '--schema_include', help="CSV list of schemas to INCLUDE. Object in only these schemas will be exported.")
-        args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported.")
+        args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported. Comments can be precended with #.")
         args_filter.add_argument('-N', '--schema_exclude', help="CSV list of schemas to EXCLUDE. All objects in these schemas will be ignored. If both -n and -N are set, pg_extractor follows the same rules as pg_dump for such a case.")
-        args_filter.add_argument('-Nf', '--schema_exclude_file', help="Path to a file listing schemas to EXCLUDE. Each schema goes on its own line. All objects in these schemas will be ignored. If both -nf and -Nf are set, pg_extractor follows the same rules as pg_dump for such a case.")
+        args_filter.add_argument('-Nf', '--schema_exclude_file', help="Path to a file listing schemas to EXCLUDE. Each schema goes on its own line. All objects in these schemas will be ignored. If both -nf and -Nf are set, pg_extractor follows the same rules as pg_dump for such a case. Comments can be precended with #.")
         args_filter.add_argument('-t', '--table_include', help="CSV list of tables to INCLUDE. Only these tables will be extracted.")
-        args_filter.add_argument('-tf', '--table_include_file', help="Path to a file listing tables to INCLUDE. Each table goes on its own line.")
+        args_filter.add_argument('-tf', '--table_include_file', help="Path to a file listing tables to INCLUDE. Each table goes on its own line. Comments can be precended with #.")
         args_filter.add_argument('-T', '--table_exclude', help="CSV list of tables to EXCLUDE. These tables will be not be extracted.")
-        args_filter.add_argument('-Tf', '--table_exclude_file', help="Path to a file listing tables to EXCLUDE. Each table goes on its own line.")
+        args_filter.add_argument('-Tf', '--table_exclude_file', help="Path to a file listing tables to EXCLUDE. Each table goes on its own line. Comments can be precended with #.")
         args_filter.add_argument('-v', '--view_include', help="CSV list of views to INCLUDE. Only these views will be extracted.")
-        args_filter.add_argument('-vf', '--view_include_file', help="Path to a file listing views to INCLUDE. Each view goes on its own line.")
+        args_filter.add_argument('-vf', '--view_include_file', help="Path to a file listing views to INCLUDE. Each view goes on its own line. Comments can be precended with #.")
         args_filter.add_argument('-V', '--view_exclude', help="CSV list of views to EXCLUDE. These views will be not be extracted.")
-        args_filter.add_argument('-Vf', '--view_exclude_file', help="Path to a file listing views to EXCLUDE. Each view goes on its own line.")
-        args_filter.add_argument('-pf', '--function_include_file', help="Path to a file listing functions/aggregates to INCLUDE. Each function goes on its own line. Only these functions will be extracted.")
-        args_filter.add_argument('-Pf', '--function_exclude_file', help="Path to a file listing functions/aggregates to EXCLUDE. Each function goes on its own line. These functions will not be extracted.")
+        args_filter.add_argument('-Vf', '--view_exclude_file', help="Path to a file listing views to EXCLUDE. Each view goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-pf', '--function_include_file', help="Path to a file listing functions/aggregates to INCLUDE. Each function goes on its own line. Only these functions will be extracted. Comments can be precended with #.")
+        args_filter.add_argument('-Pf', '--function_exclude_file', help="Path to a file listing functions/aggregates to EXCLUDE. Each function goes on its own line. These functions will not be extracted. Comments can be precended with #.")
         args_filter.add_argument('-o', '--owner_include', help="CSV list of object owners to INCLUDE. Only objects owned by these owners will be extracted.")
-        args_filter.add_argument('-of', '--owner_include_file', help="Path to a file listing object owners to INCLUDE. Each owner goes on its own line.")
+        args_filter.add_argument('-of', '--owner_include_file', help="Path to a file listing object owners to INCLUDE. Each owner goes on its own line. Comments can be precended with #.")
         args_filter.add_argument('-O', '--owner_exclude', help="CSV list of object owners to EXCLUDE. Objects owned by these owners will not be extracted.")
-        args_filter.add_argument('-Of', '--owner_exclude_file', help="Path to a file listing object owners to EXCLUDE. Each owner goes on its own line.")
-        args_filter.add_argument('-rf', '--regex_include_file', help="Path to a file containing regex patterns of objects to INCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc).")
-        args_filter.add_argument('-Rf', '--regex_exclude_file', help="Path to a file containing regex patterns of objects to EXCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). If both -rf and -Rf are set at the same time, items will be excluded first than any that remain will match against include.")
+        args_filter.add_argument('-Of', '--owner_exclude_file', help="Path to a file listing object owners to EXCLUDE. Each owner goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-rf', '--regex_include_file', help="Path to a file containing regex patterns of objects to INCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). Comments can be precended with #.")
+        args_filter.add_argument('-Rf', '--regex_exclude_file', help="Path to a file containing regex patterns of objects to EXCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). If both -rf and -Rf are set at the same time, items will be excluded first than any that remain will match against include. Comments can be precended with #.")
         args_filter.add_argument('--no_owner', action="store_true", help="Do not add commands to extracted files that set ownership of objects to match the original database.")
         args_filter.add_argument('-x', '--no_acl', '--no_privileges', action="store_true", help="Prevent dumping of access privileges (grant/revoke commands")
 
