@@ -891,6 +891,7 @@ class PGExtractor:
         if self.args.debug:
             print(pg_dump_cmd)
         try:
+            self.tmp_dump_file.close()
             subprocess.check_call(pg_dump_cmd)
         except subprocess.CalledProcessError as e:
             print("Error in pg_dump command while creating template dump file: " + str(e.cmd))
