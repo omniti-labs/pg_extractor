@@ -1,3 +1,6 @@
+2.0.4
+* Fixed SHARING_VIOLATION error when running on Windows. (Github Issue #29)
+
 2.0.3
 * Fixed error being thrown when giving multiple schemas to the -n, -N, -nf, or -Nf filters. (Github Issue #27)
 * Allow comments in filter files. Start the line with #. (Github Issue #27)

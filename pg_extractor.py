@@ -12,7 +12,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.3"
+        self.version = "2.0.4"
         self.args = False
         self.temp_filelist = []
 
@@ -891,6 +891,7 @@ class PGExtractor:
         if self.args.debug:
             print(pg_dump_cmd)
         try:
+            self.tmp_dump_file.close()
             subprocess.check_call(pg_dump_cmd)
         except subprocess.CalledProcessError as e:
             print("Error in pg_dump command while creating template dump file: " + str(e.cmd))
@@ -1176,7 +1177,8 @@ class PGExtractor:
         if self.args.temp == None:
             self.tmp_dump_file = tempfile.NamedTemporaryFile(prefix='pg_extractor')
         else:
-            self.tmp_dump_file = tempfile.NamedTemporaryFile(prefix='pg_extractor', dir=self.args.temp)
+            self.tmp_dump_file = tempfile.NamedTemporaryFile(prefix='pg_extractor', dir=self.args.temp, delete=False)
+        self.temp_filelist.append(self.tmp_dump_file.name)
 
         if self.args.pgbin != None:
             sys.path.append(self.args.pgbin)
