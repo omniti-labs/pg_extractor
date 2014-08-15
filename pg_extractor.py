@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys
 
-import argparse, errno, fileinput, os, os.path, random, re, shutil, socket, subprocess, tempfile, time
+import argparse, errno, fileinput, os, os.path, random, re, shutil, subprocess, tempfile, time
 from multiprocessing import Process
 
 class PGExtractor:
@@ -12,7 +12,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.4"
+        self.version = "2.0.5"
         self.args = False
         self.temp_filelist = []
 
@@ -239,6 +239,7 @@ class PGExtractor:
                 pass
             else:
                 print("Unable to create directory: " + e.filename + ": " + e.strerror)
+                sys.exit(2)
         return dest_dir
     # end create_dir()
 
@@ -1032,7 +1033,7 @@ class PGExtractor:
         """
         self.parser = argparse.ArgumentParser(description="A script for doing advanced dump filtering and managing schema for PostgreSQL databases. See NOTES section at the top of the script source for more details and examples.", epilog="NOTE: You can pass arguments via a file by passing the filename prefixed with an @ (instead of dashes). Each argument must be on its own line and its recommended to use the double-dash (--) options to make the formatting easiest. Ex: @argsfile.txt", fromfile_prefix_chars="@")
         args_conn = self.parser.add_argument_group(title="Database Connection")
-        args_conn.add_argument('--host', default=socket.gethostname(), help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. (Default: Result of socket.gethostname())")
+        args_conn.add_argument('--host', help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. Leaving this unset will allow pg_dump & pg_dumpall to use the default socket connection.)")
         args_conn.add_argument('-p', '--port', default="5432", help="Database server port. Can also set with the PGPORT environment variable.")
         args_conn.add_argument('-U', '--username', help="Database user name used by pg_dump. Can also be set with PGUSER environment variable. Defaults to system username.")
         args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. Can also be set with PGDATABASE environment variable. If this or PGDATABASE are not set, object folders will be created at the --basedir level.")
