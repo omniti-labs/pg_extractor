@@ -47,7 +47,7 @@ class PGExtractor:
         p_types = "ACL|AGGREGATE|COMMENT|CONSTRAINT|DATABASE|DEFAULT\sACL|DEFAULT|"
         p_types += "EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
         p_types += "INDEX|RULE|SCHEMA|SEQUENCE\sOWNED\sBY|SEQUENCE\sSET|SEQUENCE|"
-        p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW"
+        p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW|MATERIALIZED\sVIEW\sDATA|MATERIALIZED\sVIEW"
         p_main_object_type = re.compile(p_objid + r'\s(?P<type>' + p_types + ')')
         p_object_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>' + p_types + ')\s'
@@ -266,7 +266,7 @@ class PGExtractor:
         process_count = 0
 
         # Objects extracted with pg_dump
-        pgdump_list = self.build_type_object_list(object_list, ["TABLE", "VIEW", "FOREIGN TABLE"])
+        pgdump_list = self.build_type_object_list(object_list, ["TABLE", "MATERIALIZED VIEW", "VIEW", "FOREIGN TABLE"])
         if len(pgdump_list) > 0 and self.args and not self.args.quiet:
             print("Extracting tables...")
         for o in pgdump_list:
@@ -277,7 +277,7 @@ class PGExtractor:
 
             if o.get('objtype') == "TABLE" or o.get('objtype') == "FOREIGN TABLE":
                 output_file = self.create_dir(os.path.join(output_file, "tables"))
-            elif o.get('objtype') == "VIEW":
+            elif o.get('objtype') == "VIEW" or o.get('objtype') == "MATERIALIZED VIEW":
                 output_file = self.create_dir(os.path.join(output_file, "views"))
             else:
                 print("Invalid dump type in create_extract_files() module")
@@ -716,6 +716,7 @@ class PGExtractor:
                     if self.args and self.args.debug:
                         print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True):
+                        # As of V9.4beta2 MATERIALIZED VIEWS cannot use the "CREATE OR REPLACE" syntax
                         print(re.sub(r'^CREATE VIEW\b', "CREATE OR REPLACE VIEW", line), end="")
     # end or_replace()
 
@@ -989,7 +990,7 @@ class PGExtractor:
                 if ( len(table_include_list) > 0 and
                         (o.get('objschema') + "." + o.get('objname')) not in table_include_list ):
                     continue
-            if (o.get('objtype') == 'VIEW'):
+            if (re.match(r'(VIEW|MATERIALIZED\sVIEW)', o.get('objtype'))):
                 if ( self.args.getviews == False or
                         (o.get('objschema') + "." + o.get('objname')) in view_exclude_list):
                     continue
@@ -1051,7 +1052,7 @@ class PGExtractor:
         args_filter.add_argument('--getall', action="store_true", help="Exports all tables, views, functions, types and roles. Shortcut to setting almost all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).")
         args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl. Included in --getall.")
         args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers. Included in --getall.")
-        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl. Each file includes all rules & triggers. Included in --getall.")
+        args_filter.add_argument('--getviews', action="store_true", help="Export view ddl (includes materialized views). Each file includes all rules & triggers. Included in --getall.")
         args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions. Included in --getall.")
         args_filter.add_argument('--gettypes', action="store_true", help="Export custom types. Included in --getall.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
