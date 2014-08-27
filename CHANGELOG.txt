@@ -1,3 +1,6 @@
+2.0.6
+* Added support for materialized views. They will be output along with views. Thanks to zgkrepo on Github for the new feature!
+
 2.0.5
 * The --host option no longer defaults to "socket.gethostname()". This was forcing pg_dumpall to connect locally via TCP instead of just using the default local socket. This was causing issues for some pg_hba.conf configurations. If a TCP connection is desired, please set the --host option or use the PGHOST env variable. (also removed import of socket library since it's no longer needed).
 

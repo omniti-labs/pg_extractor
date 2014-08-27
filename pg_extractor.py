@@ -12,7 +12,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.5"
+        self.version = "2.0.6"
         self.args = False
         self.temp_filelist = []
 
