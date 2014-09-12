@@ -12,7 +12,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.0.7"
+        self.version = "2.0.8"
         self.args = False
         self.temp_filelist = []
 
@@ -962,24 +962,23 @@ class PGExtractor:
             owner_include_list = self._build_filter_list("file", self.args.owner_include_file)
 
         for o in main_object_list:
-            if o.get('objname') == None:
-                continue
             # Allow multiple regex lines to be matched against. Exclude then Include
-            regex_continue = False
-            for regex in regex_exclude_list:
-                pattern = re.compile(regex)
-                if pattern.search(o.get('objname')) != None:
-                    regex_continue = True
-                    break
+            if o.get('objname') != None:
                 regex_continue = False
-            for regex in regex_include_list:
-                pattern = re.compile(regex)
-                if pattern.search(o.get('objname')) != None:
+                for regex in regex_exclude_list:
+                    pattern = re.compile(regex)
+                    if pattern.search(o.get('objname')) != None:
+                        regex_continue = True
+                        break
                     regex_continue = False
-                    break
-                regex_continue = True
-            if regex_continue:
-                continue
+                for regex in regex_include_list:
+                    pattern = re.compile(regex)
+                    if pattern.search(o.get('objname')) != None:
+                        regex_continue = False
+                        break
+                    regex_continue = True
+                if regex_continue:
+                    continue
 
             if ( o.get('objowner') in owner_exclude_list ):
                 continue

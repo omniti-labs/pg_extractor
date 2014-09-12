@@ -1,3 +1,6 @@
+2.0.8
+* Fixed regression from 2.0.7 that caused all default privileges (if set) to be skipped when --getall or --getdefaultprivs was set
+
 2.0.7
 * Fixed error being thrown when using regex filters when any default privileges had been altered.
 
