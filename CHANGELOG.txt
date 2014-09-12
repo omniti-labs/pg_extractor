@@ -1,3 +1,6 @@
+2.0.7
+* Fixed error being thrown when using regex filters when any default privileges had been altered.
+
 2.0.6
 * Added support for materialized views. They will be output along with views. Thanks to zgkrepo on Github for the new feature!
 
