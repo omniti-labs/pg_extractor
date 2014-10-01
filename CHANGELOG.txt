@@ -1,25 +1,38 @@
+2.1.0
+* Added --retry option. This can be used to tell pg_extractor how many times to run in case it encounters any errors (if set to 3 it will run at most 3 times before giving up). If any retry attempts fail, error details will be output after a successful run or after all attempts fail. Known errors encountered can be suppressed with the --quiet option and won't be output unless all attempts fail. Unknown errors may still cause output at any time while retrying.
+* Ensured all caught exceptions are exiting script properly.
+* Should now also clean up temp files if script exits unexpectedly (Ctrl+C).
+
+
 2.0.8
 * Fixed regression from 2.0.7 that caused all default privileges (if set) to be skipped when --getall or --getdefaultprivs was set
+
 
 2.0.7
 * Fixed error being thrown when using regex filters when any default privileges had been altered.
 
+
 2.0.6
 * Added support for materialized views. They will be output along with views. Thanks to zgkrepo on Github for the new feature!
+
 
 2.0.5
 * The --host option no longer defaults to "socket.gethostname()". This was forcing pg_dumpall to connect locally via TCP instead of just using the default local socket. This was causing issues for some pg_hba.conf configurations. If a TCP connection is desired, please set the --host option or use the PGHOST env variable. (also removed import of socket library since it's no longer needed).
 
+
 2.0.4
 * Fixed SHARING_VIOLATION error when running on Windows. (Github Issue #29)
+
 
 2.0.3
 * Fixed error being thrown when giving multiple schemas to the -n, -N, -nf, or -Nf filters. (Github Issue #27)
 * Allow comments in filter files. Start the line with #. (Github Issue #27)
 
+
 2.0.2
 * Fixed errors being thrown when --jobs option was used to extract schemas, rules, triggers, sequences, or types (Github Issue #26)
 * Fixed incorrect contents being output into extracted files when --jobs option was being used. If you were using --jobs option before, please re-run script again to fix any incorrect file contents. (Discovered when fixing Github Issue #26)
+
 
 2.0.1
 * Remove python 3 check at the top of the script. This allows the 3to2 conversion script to make a working version of pg_extractor for python 2.7 (https://pypi.python.org/pypi/3to2) (Github Issue #24)
