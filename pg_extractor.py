@@ -783,7 +783,7 @@ class PGExtractor:
         in one schema, setting the -n option speeds it up a little since it only 
         has to dump out a single schema to the temp dump file that is used.
 
-            python3 pg_extractor.pl -U postgres --dbname=mydb --getfuncs 
+            python3 pg_extractor.py -U postgres --dbname=mydb --getfuncs 
                 --include_functions_file=/home/postgres/func_incl -n dblink
 
              func_incl file contains:
@@ -1343,7 +1343,7 @@ LICENSE AND COPYRIGHT
 
 PG Extractor (pg_extractor) is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
 
-Copyright (c) 2014 OmniTI, Inc.
+Copyright (c) 2015 OmniTI, Inc.
 
 Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
 
