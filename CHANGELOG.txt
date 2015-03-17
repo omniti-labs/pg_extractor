@@ -1,3 +1,8 @@
+2.2.0
+* Added --service option to allow the use of predefined service connections. Suggestion from David Fetter.
+* The --dbname option now also sets the --database option for pg_dumpall when dumping role data to tell it which database to connect to. This only works on pg_dump/postgres versions 9.0+. For versions lower than this, the old, default method of connecting to the "postgres" database followed by "template1" will be used.
+
+
 2.1.0
 * Added --retry option. This can be used to tell pg_extractor how many times to run in case it encounters any errors (if set to 3 it will run at most 3 times before giving up). If any retry attempts fail, error details will be output after a successful run or after all attempts fail. Known errors encountered can be suppressed with the --quiet option and won't be output unless all attempts fail. Unknown errors may still cause output at any time while retrying.
 * Ensured all caught exceptions are exiting script properly.

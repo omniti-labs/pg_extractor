@@ -22,7 +22,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.1.0"
+        self.version = "2.2.0"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -673,6 +673,8 @@ class PGExtractor:
         Returns the full path to the output_file that was created.
         """
         pg_dumpall_cmd = ["pg_dumpall", "--roles-only"]
+        if self._check_bin_version("pg_dumpall", "9.0") == True:
+            pg_dumpall_cmd.append("--database=" + self.args.dbname)
         if output_dir == "#default#":
             output_file = self.create_dir(os.path.join(self.args.basedir, "roles"))
         else:
@@ -843,6 +845,31 @@ class PGExtractor:
             # returns a list with the 3rd parameter prepended to each item (used by pg_dump/restore commands)
             return [(list_prefix + x) for x in split_list]
     # end _build_filter_list()
+
+    def _check_bin_version(self, bin_file, min_version):
+        """
+        Returns true if the major (x.x) version of the given postgres binary is greater than or equal to the one given
+
+        * bin_file: binary postgres file that supports a --version argument (pg_dump, pg_dumpall, pg_restore)
+            with the output format: bin_file (PostgreSQL) x.x.x
+        * min_version: minimum major version (x.x) that this function will return true for
+
+        Returns true or false
+        """
+        min_version_list = min_version.split(".")
+        min_ver1 = int(min_version_list[0])
+        min_ver2 = int(min_version_list[1])
+        dump_version = subprocess.check_output([bin_file, '--version'], universal_newlines = True).rstrip()
+        version_position = dump_version.index(")") + 1   # add one to remove the space after the paren close
+        dump_version_list = dump_version[version_position:].split(".")
+        dump_ver1 = int(dump_version_list[0])
+        dump_ver2 = int(dump_version_list[1])
+        if dump_ver1 < min_ver1:
+            return False
+        else:
+            if dump_ver2 < min_ver2:
+                return False
+        return True
 
 
     def _cleanup_temp_files(self):
@@ -1053,7 +1080,8 @@ class PGExtractor:
         args_conn.add_argument('--host', help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. Leaving this unset will allow pg_dump & pg_dumpall to use the default socket connection.)")
         args_conn.add_argument('-p', '--port', default="5432", help="Database server port. Can also set with the PGPORT environment variable.")
         args_conn.add_argument('-U', '--username', help="Database user name used by pg_dump. Can also be set with PGUSER environment variable. Defaults to system username.")
-        args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. Can also be set with PGDATABASE environment variable. If this or PGDATABASE are not set, object folders will be created at the --basedir level.")
+        args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. Can also be set with PGDATABASE environment variable. If this or PGDATABASE are not set, object folders will be created at the --basedir level. Also used for --database(-l) option to pg_dumpall if pg_dumpall version is 9.0+ and dumping role data. Note that pg_dumpall does not recognize PGDATABASE. If pg_dumpall is less than 9.0, the old defaults are used (see PostgreSQL docs for defaults).")
+        args_conn.add_argument('--service', help="Defined service to use to connect to a database. Can also be set with the PGSERVICE environment variable.")
         args_conn.add_argument('--encoding', help="Create the dump files in the specified character set encoding. By default, the dump is created in the database encoding. Can also be set with the PGCLIENTENCODING environment variable.")
         args_conn.add_argument('--pgpass', help="Full file path to location of .pgpass file if not in default location. Can also be set with the PGPASSFILE environment variable.")
 
@@ -1224,6 +1252,8 @@ class PGExtractor:
             os.environ['PGPASSFILE'] = self.args.pgpass
         if self.args.encoding != None:
             os.environ['PGCLIENTENCODING'] = self.args.encoding
+        if self.args.service != None:
+            os.environ['PGSERVICE'] = self.args.service
         if self.args.debug:
             print(os.environ)
         if self.args.pgbin != None:
