@@ -1,3 +1,9 @@
+2.3.0
+* Removed --retry option. It was supressing many error conditions when a bug was encountered, making it look like it ran fine when in it actually didn't. Made debugging to add new features incredibly difficult. Tried to account for all places to allow it to work, but it was becoming ridiculous. If anyone really needs this feature, feel free to make an issue on github and I can try again. Otherwise you're probably better off wrapping this in your own script to make it retry on error.
+* Added --dbnamdir & --nodbnamedir options. Allows you to customize the database directory name that's made or exclude it all together. By default, pg_extractor always puts all objects in a folder named for the database it came from. (Github Issue #33)
+* Added --getextensions option (included in --getall). The only contents that are typically placed in the resulting files are a single "CREATE EXTENSION" line and an associated comment if applicable. See the PostgreSQL documentation concerning pg_dump & extensions for an explanation why. Including this option for schema completeness. (Github Issue #32)
+
+
 2.2.0
 * Added --service option to allow the use of predefined service connections. Suggestion from David Fetter.
 * The --dbname option now also sets the --database option for pg_dumpall when dumping role data to tell it which database to connect to. This only works on pg_dump/postgres versions 9.0+. For versions lower than this, the old, default method of connecting to the "postgres" database followed by "template1" will be used.

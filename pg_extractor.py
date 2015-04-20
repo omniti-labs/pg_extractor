@@ -22,7 +22,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.2.0"
+        self.version = "2.3.0"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -48,7 +48,7 @@ class PGExtractor:
         try:
             restore_object_list = subprocess.check_output(pg_restore_cmd, universal_newlines=True).splitlines()
         except subprocess.CalledProcessError as e:
-            self.error_list.append("Error in pg_restore when generating main object list: " + str(e.cmd))
+            print("Error in pg_restore when generating main object list: " + str(e.cmd))
             sys.exit(2)
 
         p_objid = '\d+;\s\d+\s\d+'
@@ -83,7 +83,7 @@ class PGExtractor:
                 r'(?P<objowner>\S+)')
         p_comment_extension_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>COMMENT)\s'
-                r'(?P<objdash>\S+)\s'
+                r'(?P<objschema>\S+)\s'
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>\S+)\s')
         p_comment_function_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
@@ -155,7 +155,7 @@ class PGExtractor:
                         obj_mapping = p_comment_extension_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
-                            , ('objdash', obj_mapping.group('objdash'))
+                            , ('objschema', obj_mapping.group('objschema'))
                             , ('objsubtype', obj_mapping.group('objsubtype'))
                             , ('objname', obj_mapping.group('objname'))
                             ])
@@ -250,7 +250,7 @@ class PGExtractor:
             if e.errno == errno.EEXIST and os.path.isdir(dest_dir):
                 pass
             else:
-                self.error_list.append("Unable to create directory: " + e.filename + ": " + e.strerror)
+                print("Unable to create directory: " + e.filename + ": " + e.strerror)
                 sys.exit(2)
         return dest_dir
     # end create_dir()
@@ -292,7 +292,7 @@ class PGExtractor:
             elif o.get('objtype') == "VIEW" or o.get('objtype') == "MATERIALIZED VIEW":
                 output_file = self.create_dir(os.path.join(output_file, "views"))
             else:
-                self.error_list.append("Invalid dump type in create_extract_files() module")
+                print("Invalid dump type in create_extract_files() module")
                 sys.exit(2)
 
             # replace any non-alphanumeric characters with ",hexcode,"
@@ -531,7 +531,7 @@ class PGExtractor:
         process_list = []
         process_count = 0
         tmp_restore_list = None
-        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE"])
+        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE", "EXTENSION"])
         if len(other_object_list) > 0:
             if self.args and not self.args.quiet:
                 print("Extracting remaining objects...")
@@ -571,6 +571,12 @@ class PGExtractor:
                     objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
                     output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
 
+                if o.get('objtype') == "EXTENSION":
+                    output_file = self.create_dir(os.path.join(output_file, 'extensions'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objname_filename + ".sql")
+
                 extract_file_list.append(output_file)
                 if self.args and self.args.temp != None:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', dir=self.args.temp, delete=False)
@@ -579,7 +585,10 @@ class PGExtractor:
                 self.temp_filelist.append(tmp_restore_list.name)
                 fh = open(tmp_restore_list.name, 'w')
                 restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
-                restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
+                if o.get('objtype') == 'EXTENSION':
+                    restore_line += " " + o.get('objname') + "\n"
+                else:
+                    restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
                 fh.write(restore_line)
                 for a in acl_list:
                     if o.get('objschema') == a.get('objschema') and o.get('objname') == a.get('objname'):
@@ -587,10 +596,13 @@ class PGExtractor:
                         restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
                         fh.write(restore_line)
                 for c in comment_list:
-                    if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE)', c.get('objsubtype')):
+                    if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE|EXTENSION)', c.get('objsubtype')):
                         if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
                             restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                            restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
+                            if c.get('objsubtype') == 'EXTENSION':
+                                restore_line += " " + c.get('objname') + "\n"
+                            else:
+                                restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
                             fh.write(restore_line)
                 fh.close()
                 if self.args and self.args.jobs > 0:
@@ -686,7 +698,7 @@ class PGExtractor:
         try:
             subprocess.check_output(pg_dumpall_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            self.error_list.append("Error in pg_dumpall command while extracting roles: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
+            print("Error in pg_dumpall command while extracting roles: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
             sys.exit(2)
         return output_file
     # end extract_roles()
@@ -833,10 +845,10 @@ class PGExtractor:
                     if not line.strip().startswith('#'):
                         split_list.append(line.strip())
             except IOError as e:
-               self.error_list.append("Cannot access include/exclude file " + list_items + ": " + e.strerror)
+               print("Cannot access include/exclude file " + list_items + ": " + e.strerror)
                sys.exit(2)
         else:
-            self.error_list.append("Bad include/exclude list formatting")
+            print("Bad include/exclude list formatting")
             sys.exit(2)
         if list_prefix == "#none#":
             # returns as an unaltered list object (used by _filter_object_list)
@@ -913,7 +925,7 @@ class PGExtractor:
             pg_dump_cmd.append("--column-inserts")
         if self.args.schema_include != None:
             if self.args.schema_include_file != None:
-                self.error_list.append("Cannot set both --schema_include & --schema_include_file arguments")
+                print("Cannot set both --schema_include & --schema_include_file arguments")
                 sys.exit(2)
             for s in self._build_filter_list("csv", self.args.schema_include, "--schema="):
                 pg_dump_cmd.append(s)
@@ -922,7 +934,7 @@ class PGExtractor:
                 pg_dump_cmd.append(s)
         if self.args.schema_exclude != None:
             if self.args.schema_exclude_file != None:
-                self.error_list.append("Cannot set both --schema_exclude & --schema_exclude_file arguments")
+                print("Cannot set both --schema_exclude & --schema_exclude_file arguments")
                 sys.exit(2)
             for s in self._build_filter_list("csv", self.args.schema_exclude, "--exclude-schema="):
                 pg_dump_cmd.append(s)
@@ -936,7 +948,7 @@ class PGExtractor:
             self.tmp_dump_file.close()
             subprocess.check_output(pg_dump_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            self.error_list.append("Error in pg_dump command while creating template dump file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
+            print("Error in pg_dump command while creating template dump file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
             sys.exit(2)
             raise
 
@@ -945,7 +957,7 @@ class PGExtractor:
             try:
                 shutil.copy(self.tmp_dump_file.name, dest_file)
             except IOError as e:
-                self.error_list.append("Error during creation of --keep_dump file: " + e.strerror + ": " + e.filename)
+                print("Error during creation of --keep_dump file: " + e.strerror + ": " + e.filename)
                 sys.exit(2)
     # end _create_temp_dump()
 
@@ -1059,6 +1071,9 @@ class PGExtractor:
             if (o.get('objtype') == 'TRIGGER'):
                 if (self.args.gettriggers == False):
                     continue
+            if (o.get('objtype') == 'EXTENSION'):
+                if (self.args.getextensions == False):
+                    continue
 
             filtered_list.append(o)
 
@@ -1089,16 +1104,19 @@ class PGExtractor:
         args_dir.add_argument('--basedir', default=os.getcwd(), help="Base directory for ddl export. (Default: directory pg_extractor is run from)")
         args_dir.add_argument('--hostnamedir', help="Optional hostname of the database server used as directory name under --basedir to help with organization.")
         args_dir.add_argument('--schemadir', action="store_true", help="Breakout each schema's content into subdirectories under the database directory (.../database/schema/...)")
+        args_dir.add_argument('--dbnamedir', help="By default, a directory is created with the name of the database being dumped to contain everything else. Set this if you want to change the name.")
+        args_dir.add_argument('--nodbnamedir', action="store_true", help="Set this option if you do not want a directory with the database name to be created and used. All files/folders will then be created at either the --basedir or --hostnamedir level.")
         args_dir.add_argument('--pgbin', help="Full folder path of the required postgresql binaries if not located in $PATH: pg_dump, pg_restore, pg_dumpall.")
         args_dir.add_argument('--temp', help="Full folder path to use as temporary space. Defaults to system designated temporary space. Note that if you use --getdata, there must be enough temp space for a full, binary dump of the database in the temp location.")
 
         args_filter = self.parser.add_argument_group(title="Filters", description="All object names given in any filter MUST be fully schema qualified.")
-        args_filter.add_argument('--getall', action="store_true", help="Exports all tables, views, functions, types and roles. Shortcut to setting almost all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).")
+        args_filter.add_argument('--getall', action="store_true", help="Exports all tables, views, functions, types, extensions and roles. Shortcut to setting almost all --get* options. Does NOT include data or separate sequence, trigger or rule files (see --getsequences, --gettriggers, --getrules).")
         args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl. Included in --getall.")
         args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers. Included in --getall.")
         args_filter.add_argument('--getviews', action="store_true", help="Export view ddl (includes materialized views). Each file includes all rules & triggers. Included in --getall.")
         args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions. Included in --getall.")
         args_filter.add_argument('--gettypes', action="store_true", help="Export custom types. Included in --getall.")
+        args_filter.add_argument('--getextensions', action="store_true", help="Export extensions. Included in --getall. Note this only places a 'CREATE EXTENSION...' line in the file along with any associated COMMENTs. Extension source code is never dumped out with pg_dump. See PostgreSQL docs on extensions for more info.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
         args_filter.add_argument('--getdefaultprivs', action="store_true", help="Export all the default privilges for roles if they have been set. See the ALTER DEFAULT PRIVILEGES statement for how these are set. Theese are extracted to the same 'roles' folder that --getroles uses. Included in --getall.")
         args_filter.add_argument('--getsequences', action="store_true", help="If you need to export unowned sequences, set this option. Note that this will export both owned and unowned sequences to the separate sequence folder. --gettables or --getall will include any sequence that is owned by a table in that table's output file as well. Current sequence values can only be included in the extracted file if --getdata is set.")
@@ -1139,25 +1157,12 @@ class PGExtractor:
         args_misc.add_argument('--column_inserts', '--attribute_inserts', action="store_true", help="Dump data as INSERT commands with explicit column names (INSERT INTO table (column, ...) VALUES ...). Only useful with --getdata option.")
         args_misc.add_argument('--keep_dump', action="store_true", help="""Keep a permanent copy of the pg_dump file used to generate the export files. Will only contain schemas designated by original options and will NOT contain data even if --getdata is set. Note that other items filtered out by pg_extractor (including tables) will still be included in the dump file. File will be put in a folder called "dump" under --basedir. """)
         args_misc.add_argument('-w','--wait', default=0, type=float, help="Cause the script to pause for a given number of seconds between each object extraction. If --jobs is set, this is the wait time between parallel job batches. If dumping data, this can help to reduce write load.")
-        args_misc.add_argument('--retry', default=1, type=int, help="Have pg_extractor retry to run from the beginning if it encounters errors. Value given is an integer for how many times pg_extractor will run before giving up. Default is 1. Errors encountered will be output at the end of a successful run or if all runs fail. Known errors can be suppressed with --quiet, but if all runs fail errors will always be output to STDERR.")
         args_misc.add_argument('-q', '--quiet', action="store_true", help="Suppress all program output.")
         args_misc.add_argument('--version', action="store_true", help="Print the version number of pg_extractor.")
         args_misc.add_argument('--examples', action="store_true", help="Print out examples of command line usage.")
         args_misc.add_argument('--debug', action="store_true", help="Provide additional output to aid in debugging. Please run with this enabled and provide all results when reporting any issues.")
         self.args = self.parser.parse_args()
     # end _parse_arguments()
-
-
-    def _print_error_summary(self):
-        attempt_count = 1
-        output = ""
-        for e in self.error_list:
-            if self.args.retry > 1:
-                output = "Attempt " + str(attempt_count) + " Error: "
-            output += e
-            print(output, file=sys.stderr)
-            attempt_count += 1
-
 
     def _run_pg_dump(self, o, output_file):
         """
@@ -1190,7 +1195,7 @@ class PGExtractor:
         try:
             subprocess.check_output(pg_dump_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            self.error_list.append("Error in pg_dump command while creating extract file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
+            print("Error in pg_dump command while creating extract file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
             sys.exit(2)
         if self.args.wait > 0:
             time.sleep(self.args.wait)
@@ -1221,7 +1226,7 @@ class PGExtractor:
         try:
             subprocess.check_output(restore_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
-            self.error_list.append("Error in pg_restore command while creating extract file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
+            print("Error in pg_restore command while creating extract file: " + str(e.output, encoding='utf-8').rstrip() + "\nSubprocess command called: " + str(e.cmd))
             sys.exit(2)
         if self.args.wait > 0:
             time.sleep(self.args.wait)
@@ -1262,7 +1267,11 @@ class PGExtractor:
         # Change basedir if these are set
         if self.args.hostnamedir != None: 
             self.args.basedir = os.path.join(self.args.basedir, self.args.hostnamedir)
-        if "PGDATABASE" in os.environ:
+        if self.args.nodbnamedir == True:
+            pass # Don't add a dbname to new basedir
+        elif self.args.dbnamedir != None:
+            self.args.basedir = os.path.join(self.args.basedir, self.args.dbnamedir)
+        elif "PGDATABASE" in os.environ:
             self.args.basedir = os.path.join(self.args.basedir, os.environ["PGDATABASE"])
         self.create_dir(self.args.basedir)
 
@@ -1274,11 +1283,12 @@ class PGExtractor:
             self.args.gettypes = True
             self.args.getroles = True
             self.args.getdefaultprivs = True
+            self.args.getextensions = True
         elif any([a for a in (self.args.getschemata,self.args.gettables,self.args.getfuncs,self.args.getviews,self.args.gettypes
-            ,self.args.getroles,self.args.getdefaultprivs,self.args.getsequences,self.args.gettriggers,self.args.getrules)]):
+            ,self.args.getroles,self.args.getdefaultprivs,self.args.getsequences,self.args.gettriggers,self.args.getrules,self.args.getextensions)]):
             pass # Do nothing since at least one output option was set
         else:
-            self.error_list.append("No extraction options set. Must set --getall or one of the other --get<object> arguments.")
+            print("No extraction options set. Must set --getall or one of the other --get<object> arguments.")
             sys.exit(2);
 
         if ( (self.args.table_include != None and self.args.table_include_file != None) or
@@ -1287,12 +1297,12 @@ class PGExtractor:
                 (self.args.view_exclude != None and self.args.view_exclude_file != None) or
                 (self.args.owner_include != None and self.args.owner_include_file != None) or
                 (self.args.owner_exclude != None and self.args.owner_exclude_file != None) ):
-            self.error_list.append("Cannot set both a csv and file filter at the same time for the same object type.")
+            print("Cannot set both a csv and file filter at the same time for the same object type.")
             sys.exit(2)
 
         if self.args.remove_passwords:
             if not self.args.getroles:
-                self.error_list.append("Cannot set --remove_passwords without setting either --getroles or --getall")
+                print("Cannot set --remove_passwords without setting either --getroles or --getall")
                 sys.exit(2)
     # end _set_config()
 
@@ -1311,62 +1321,35 @@ if __name__ == "__main__":
         p.show_examples()
         sys.exit(1)
 
-    retry_success = True
-    for i in range(p.args.retry):
-        try:
-            p._set_config()
-            p._create_temp_dump()
-            main_object_list = p.build_main_object_list()
-            filtered_list = p._filter_object_list(main_object_list)
-            extracted_files_list = p.create_extract_files(filtered_list)
-            if p.args.getroles:
-                role_file = p.extract_roles()
-                extracted_files_list.append(role_file)
-                if p.args.remove_passwords:
-                    p.remove_passwords(role_file)
-            if p.args.delete:
-                p.delete_files(extracted_files_list)
-            if p.args.orreplace:
-                p.or_replace()
+    try:
+        p._set_config()
+        p._create_temp_dump()
+        main_object_list = p.build_main_object_list()
+        filtered_list = p._filter_object_list(main_object_list)
+        extracted_files_list = p.create_extract_files(filtered_list)
+        if p.args.getroles:
+            role_file = p.extract_roles()
+            extracted_files_list.append(role_file)
+            if p.args.remove_passwords:
+                p.remove_passwords(role_file)
+        if p.args.delete:
+            p.delete_files(extracted_files_list)
+        if p.args.orreplace:
+            p.or_replace()
 
-            spline = random.randint(1,10000)
-            if spline > 9000 and not p.args.quiet:
-                print("Reticulating splines...")
+        spline = random.randint(1,10000)
+        if spline > 9000 and not p.args.quiet:
+            print("Reticulating splines...")
 
-            if not p.args.quiet:
-                print("Done")
-            retry_success = True
-        except SystemExit as se:
-            # Catch when sys.exit(2) is called in functions above to allow --retry loops
-            retry_success = False
-            if se.code == 2:
-                if not p.args.quiet:
-                    if p.args.retry > 1 and i < (p.args.retry - 1):
-                        print("Error encountered. Retrying extraction...")
-            continue
-        except Exception as e:
-            retry_success = False
-            if not p.args.quiet:
-                if p.args.retry > 1 and i < (p.args.retry - 1):
-                    print("Error encountered: Retrying extraction...")
-            continue
-        finally:
-            if not p.tmp_dump_file.closed:
-                p.tmp_dump_file.close()
-            p._cleanup_temp_files()
-            if p.args.debug:
-                print("\nRETRY ATTEMPT:")
-                print("retry_success: " + str(retry_success) + ", len error list: " + str(len(p.error_list)) + ", quiet: " + str(p.args.quiet) + ", i: " + str(i))
-            if (retry_success and len(p.error_list) > 0 and p.args.quiet == False): 
-                p._print_error_summary()
-            elif (retry_success == False and len(p.error_list) > 0 and i == (p.args.retry - 1) ):
-                p._print_error_summary()
-                # if all attempts fail, ensure error condition exit with error
-                sys.exit(2)
+    finally:
+        if not p.tmp_dump_file.closed:
+            p.tmp_dump_file.close()
 
-        # leave the --retry for loop if we actually get to this point
-        break
-
+        p._cleanup_temp_files()
+            
+    if not p.args.quiet:
+        print("Done")
+   
 """
 LICENSE AND COPYRIGHT
 ---------------------
