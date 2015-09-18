@@ -22,7 +22,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.3.1"
+        self.version = "2.3.2"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -57,7 +57,7 @@ class PGExtractor:
         # Last object in this list cannot have a space in it.
         # If an object type is missing, please let me know and I'll add it.
         p_types = "ACL|AGGREGATE|COMMENT|CONSTRAINT|DATABASE|DEFAULT\sACL|DEFAULT|"
-        p_types += "EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
+        p_types += "DOMAIN|EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
         p_types += "INDEX|RULE|SCHEMA|SEQUENCE\sOWNED\sBY|SEQUENCE\sSET|SEQUENCE|"
         p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW|MATERIALIZED\sVIEW\sDATA|MATERIALIZED\sVIEW"
         p_main_object_type = re.compile(p_objid + r'\s(?P<type>' + p_types + ')')
@@ -540,7 +540,7 @@ class PGExtractor:
         process_list = []
         process_count = 0
         tmp_restore_list = None
-        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE", "EXTENSION"])
+        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE", "EXTENSION", "DOMAIN"])
         if len(other_object_list) > 0:
             if self.args and not self.args.quiet:
                 print("Extracting remaining objects...")
@@ -573,7 +573,7 @@ class PGExtractor:
                     objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
                     output_file = os.path.join(output_file, objschema_filename + "." + objname_filename + ".sql")
 
-                if o.get('objtype') == "TYPE":
+                if o.get('objtype') == "TYPE" or o.get('objtype') == "DOMAIN":
                     output_file = self.create_dir(os.path.join(output_file, 'types'))
                     # replace any non-alphanumeric characters with ",hexcode,"
                     objschema_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objschema'))
@@ -605,7 +605,7 @@ class PGExtractor:
                         restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
                         fh.write(restore_line)
                 for c in comment_list:
-                    if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE|EXTENSION)', c.get('objsubtype')):
+                    if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE|EXTENSION|DOMAIN)', c.get('objsubtype')):
                         if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
                             restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
                             if c.get('objsubtype') == 'EXTENSION':
@@ -694,7 +694,6 @@ class PGExtractor:
         Returns the full path to the output_file that was created.
         """
         pg_dumpall_cmd = ["pg_dumpall", "--roles-only"]
-        #TODO REMOVE 
         if (self._check_bin_version("pg_dumpall", "9.0") == True) and (self.args.dbname != None):
             pg_dumpall_cmd.append("--database=" + self.args.dbname)
         if output_dir == "#default#":
@@ -1072,7 +1071,7 @@ class PGExtractor:
             if (o.get('objtype') == 'SCHEMA'):
                 if(self.args.getschemata == False):
                     continue
-            if (o.get('objtype') == 'TYPE'):
+            if (o.get('objtype') == 'TYPE|DOMAIN'):
                 if (self.args.gettypes == False):
                     continue
             if (o.get('objtype') == 'RULE'):
@@ -1125,7 +1124,7 @@ class PGExtractor:
         args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers. Included in --getall.")
         args_filter.add_argument('--getviews', action="store_true", help="Export view ddl (includes materialized views). Each file includes all rules & triggers. Included in --getall.")
         args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions. Included in --getall.")
-        args_filter.add_argument('--gettypes', action="store_true", help="Export custom types. Included in --getall.")
+        args_filter.add_argument('--gettypes', action="store_true", help="Export custom types and domains. Included in --getall.")
         args_filter.add_argument('--getextensions', action="store_true", help="Export extensions. Included in --getall. Note this only places a 'CREATE EXTENSION...' line in the file along with any associated COMMENTs. Extension source code is never dumped out with pg_dump. See PostgreSQL docs on extensions for more info.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
         args_filter.add_argument('--getdefaultprivs', action="store_true", help="Export all the default privilges for roles if they have been set. See the ALTER DEFAULT PRIVILEGES statement for how these are set. Theese are extracted to the same 'roles' folder that --getroles uses. Included in --getall.")

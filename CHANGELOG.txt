@@ -1,3 +1,7 @@
+2.3.2
+* Added extraction of DOMAIN objects. These are considered a type and included with --gettypes (and --getall) and included in the types folder.
+
+
 2.3.1
 * Fixed --orreplace not working in combination with --schemadir option (Github #34).
 * Fixed --getall or --getroles failing when either --dbname or PGDATABASE environment variable were not set.
