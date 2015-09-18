@@ -22,7 +22,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.3.0"
+        self.version = "2.3.1"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -402,6 +402,15 @@ class PGExtractor:
             for j in process_list:
                 j.join()
 
+        # Handle if --orreplace is set with --schemadir. This must be done after view & function files have been exported.
+        if self.args.orreplace:
+            schema_list = self.build_type_object_list(object_list, ["SCHEMA"])
+            for o in schema_list:
+                target_dir_funcs = os.path.join(target_dir, o.get('objname'), "functions")
+                target_dir_views = os.path.join(target_dir, o.get('objname'), "views")
+                self.or_replace(target_dir_funcs, target_dir_views)
+
+
 
         # Sequences are special little snowflakes
         process_list = []
@@ -685,7 +694,8 @@ class PGExtractor:
         Returns the full path to the output_file that was created.
         """
         pg_dumpall_cmd = ["pg_dumpall", "--roles-only"]
-        if self._check_bin_version("pg_dumpall", "9.0") == True:
+        #TODO REMOVE 
+        if (self._check_bin_version("pg_dumpall", "9.0") == True) and (self.args.dbname != None):
             pg_dumpall_cmd.append("--database=" + self.args.dbname)
         if output_dir == "#default#":
             output_file = self.create_dir(os.path.join(self.args.basedir, "roles"))

@@ -1,3 +1,8 @@
+2.3.1
+* Fixed --orreplace not working in combination with --schemadir option (Github #34).
+* Fixed --getall or --getroles failing when either --dbname or PGDATABASE environment variable were not set.
+
+
 2.3.0
 * Removed --retry option. It was supressing many error conditions when a bug was encountered, making it look like it ran fine when in it actually didn't. Made debugging to add new features incredibly difficult. Tried to account for all places to allow it to work, but it was becoming ridiculous. If anyone really needs this feature, feel free to make an issue on github and I can try again. Otherwise you're probably better off wrapping this in your own script to make it retry on error.
 * Added --dbnamdir & --nodbnamedir options. Allows you to customize the database directory name that's made or exclude it all together. By default, pg_extractor always puts all objects in a folder named for the database it came from. (Github Issue #33)
