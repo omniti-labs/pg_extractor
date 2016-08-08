@@ -1,3 +1,7 @@
+2.3.3
+* Change shebang line to follow python standard (Pull Request #35).
+
+
 2.3.2
 * Added extraction of DOMAIN objects. These are considered a type and included with --gettypes (and --getall) and included in the types folder.
 
