@@ -1271,7 +1271,7 @@ class PGExtractor:
         if self.args.debug:
             print(os.environ)
         if self.args.pgbin != None:
-            os.environ["PATH"] = self.args.pgbin + ":" + os.environ["PATH"]
+            os.environ["PATH"] = self.args.pgbin + os.pathsep + os.environ["PATH"]
 
         # Change basedir if these are set
         if self.args.hostnamedir != None: 
