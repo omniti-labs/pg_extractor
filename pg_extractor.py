@@ -355,7 +355,7 @@ class PGExtractor:
             else:
                 tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
             self.temp_filelist.append(tmp_restore_list.name)
-            fh = open(tmp_restore_list.name, 'w')
+            fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
             # loop over same list to find overloaded functions
             for d in dupe_list:
                 if ( o.get('objschema') == d.get('objschema') and 
@@ -437,7 +437,7 @@ class PGExtractor:
                 else:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
                 self.temp_filelist.append(tmp_restore_list.name)
-                fh = open(tmp_restore_list.name, 'w')
+                fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
                 restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
                 restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
                 fh.write(restore_line)
@@ -502,7 +502,7 @@ class PGExtractor:
                 else:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
                 self.temp_filelist.append(tmp_restore_list.name)
-                fh = open(tmp_restore_list.name, 'w')
+                fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
                 for d in dupe_list:
                     if o.get('objrole') == d.get('objrole'):
                         restore_line =  d.get('objid') + " " + d.get('objtype') + " " + d.get('objschema')
@@ -592,7 +592,7 @@ class PGExtractor:
                 else:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
                 self.temp_filelist.append(tmp_restore_list.name)
-                fh = open(tmp_restore_list.name, 'w')
+                fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
                 restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
                 if o.get('objtype') == 'EXTENSION':
                     restore_line += " " + o.get('objname') + "\n"
@@ -849,7 +849,7 @@ class PGExtractor:
             split_list = list_items.split(',')
         elif list_type == "file":
             try:
-                fh = open(list_items, 'r')
+                fh = open(list_items, 'r', encoding='utf-8')
                 for line in fh:
                     if not line.strip().startswith('#'):
                         split_list.append(line.strip())
@@ -1220,7 +1220,7 @@ class PGExtractor:
         * output_file: target output file that pg_restore writes to
         """
         if self.args.debug:
-            fh = open(list_file, 'r')
+            fh = open(list_file, 'r', encoding='utf-8')
             print("\nRESTORE LIST FILE CONTENTS")
             for l in fh:
                 print(l)
@@ -1271,7 +1271,7 @@ class PGExtractor:
         if self.args.debug:
             print(os.environ)
         if self.args.pgbin != None:
-            os.environ["PATH"] = self.args.pgbin + ":" + os.environ["PATH"]
+            os.environ["PATH"] = self.args.pgbin + os.pathsep + os.environ["PATH"]
 
         # Change basedir if these are set
         if self.args.hostnamedir != None: 
