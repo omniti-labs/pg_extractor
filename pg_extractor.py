@@ -781,7 +781,7 @@ class PGExtractor:
         """
         if os.path.isfile(role_file):
             for line in fileinput.input(role_file, inplace=True, mode='rb'):
-                if re.match(r'ALTER ROLE', line):
+                if re.match(r'ALTER ROLE', line.decode()):
                     sys.stdout.buffer.write(
                         re.sub(r'(.*)\sPASSWORD\s.*(;)$', r'\1\2', line.decode()).encode()
                     )
