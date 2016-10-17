@@ -740,8 +740,10 @@ class PGExtractor:
                     full_file_name = os.path.join(root, name)
                     if self.args and self.args.debug:
                         print(full_file_name)
-                    for line in fileinput.input(full_file_name, inplace=True):
-                        print(re.sub(r'^CREATE FUNCTION\b', "CREATE OR REPLACE FUNCTION", line), end="")
+                    for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
+                        sys.stdout.buffer.write(
+                            re.sub(r'^CREATE FUNCTION\b', "CREATE OR REPLACE FUNCTION", line.decode()).encode()
+                        )
         if os.path.exists(target_dir_views):
             for root, dirs, files in os.walk(target_dir_views):
                 files = [f for f in files if not f[0] == '.'] # ignore hidden files
@@ -750,9 +752,11 @@ class PGExtractor:
                     full_file_name = os.path.join(root, name)
                     if self.args and self.args.debug:
                         print(full_file_name)
-                    for line in fileinput.input(full_file_name, inplace=True):
+                    for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
                         # As of V9.4beta2 MATERIALIZED VIEWS cannot use the "CREATE OR REPLACE" syntax
-                        print(re.sub(r'^CREATE VIEW\b', "CREATE OR REPLACE VIEW", line), end="")
+                        sys.stdout.buffer.write(
+                            re.sub(r'^CREATE VIEW\b', "CREATE OR REPLACE VIEW", line.decode()).encode()
+                        )
     # end or_replace()
 
 
@@ -776,11 +780,13 @@ class PGExtractor:
         * role_file: full path to the dump file
         """
         if os.path.isfile(role_file):
-            for line in fileinput.input(role_file, inplace=True):
-                if re.match(r'ALTER ROLE', line):
-                    print(re.sub(r'(.*)\sPASSWORD\s.*(;)$', r'\1\2', line), end="")
+            for line in fileinput.input(role_file, inplace=True, mode='rb'):
+                if re.match(r'ALTER ROLE', line.decode()):
+                    sys.stdout.buffer.write(
+                        re.sub(r'(.*)\sPASSWORD\s.*(;)$', r'\1\2', line.decode()).encode()
+                    )
                 else:
-                    print(line, end="")
+                    sys.stdout.buffer.write(line)
         else:
             print("Given role file does not exist: " + role_file)
     # end remove_passwords()
