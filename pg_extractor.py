@@ -977,6 +977,57 @@ class PGExtractor:
     # end _create_temp_dump()
 
 
+    def _debug_print(self, *values, sep=None, end=None, file=None, flush=None):
+        """
+        Safe version of function __builtins__.print(...),
+        against situations when argument values has non-printable characters.
+
+        Prints the values to a stream, or to sys.stdout by default.
+        Optional keyword arguments:
+        file:  a file-like object (stream); defaults to the current sys.stdout.
+        sep:   string inserted between values, default a space.
+        end:   string appended after the last value, default a newline.
+        flush: whether to forcibly flush the stream.
+        """
+
+        if sep is None:
+            sep = ' '
+
+        if end is None:
+            end = '\n'
+
+        if file is None:
+            file = sys.stdout
+
+        if flush is None:
+            flush = False
+
+        buf = getattr(file, 'buffer', file)
+        enc = getattr(file, 'encoding', 'utf-8')
+
+        def to_print_bytes(value):
+            # convert value to bytes without raise exception
+
+            if isinstance(value, bytes):
+                return bytes
+            elif isinstance(value, str):
+                return value.encode(enc, errors='replace')
+            else:
+                return str(value).encode(enc, errors='replace')
+
+        print_bytes = \
+                to_print_bytes(sep).join(
+                    to_print_bytes(value)
+                    for value in values
+                ) + to_print_bytes(end)
+
+        buf.write(print_bytes)
+
+        if flush:
+            buf.flush()
+    # end _debug_print()
+
+
     def _filter_object_list(self, main_object_list):
         """
         Apply any filter arguments that were given to the main object list generated from a pg_restore file
