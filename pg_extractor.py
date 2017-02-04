@@ -104,9 +104,9 @@ class PGExtractor:
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objrole>\S+)')
         if self.args and self.args.debug:
-            print("\nPG_RESTORE LIST:")
+            self._debug_print("\nPG_RESTORE LIST:")
             for o in restore_object_list:
-                print(o)
+                self._debug_print(o)
         for o in restore_object_list:
             if re.match(r'^;', o):
                 continue
@@ -204,9 +204,9 @@ class PGExtractor:
                 main_object_list.append(object_dict)
 
         if self.args and self.args.debug:
-            print("\nMAIN OBJECT LIST")
+            self._debug_print("\nMAIN OBJECT LIST")
             for o in main_object_list:
-                print(o)
+                self._debug_print(o)
 
         return main_object_list
     # end build_main_object_list()
@@ -229,9 +229,9 @@ class PGExtractor:
                     type_object_list.append(o)
 
         if self.args and self.args.debug:
-            print("\nTYPE OBJECT LIST " + str(list_types))
+            self._debug_print("\nTYPE OBJECT LIST " + str(list_types))
             for o in type_object_list:
-                print(o)
+                self._debug_print(o)
 
         return type_object_list
     # end build_type_object_list()
@@ -303,11 +303,11 @@ class PGExtractor:
             if self.args and self.args.jobs > 0:
                 p = Process(target=self._run_pg_dump, args=([o, output_file]))
                 if self.args and self.args.debug:
-                    print("PG_DUMP PROCESS CREATED: " + str(p.name))
+                    self._debug_print("PG_DUMP PROCESS CREATED: " + str(p.name))
                 process_list.append(p)
                 if (len(process_list) % self.args.jobs) == 0:
                     if self.args and self.args.debug:
-                        print("PG_DUMP PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                        self._debug_print("PG_DUMP PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
                     for j in process_list:
                         j.start()
                     for j in process_list:
@@ -319,7 +319,7 @@ class PGExtractor:
         # If --jobs value was not reached, finish off any that were left in the queue
         if len(process_list) > 0:
             if self.args and self.args.debug:
-                print("PG_DUMP PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                self._debug_print("PG_DUMP PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
             for j in process_list:
                 j.start()
             for j in process_list:
@@ -380,11 +380,11 @@ class PGExtractor:
             if self.args and self.args.jobs > 0:
                 p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
                 if self.args and self.args.debug:
-                    print("PG_RESTORE FUNCTIONS PROCESS CREATED: " + str(p.name))
+                    self._debug_print("PG_RESTORE FUNCTIONS PROCESS CREATED: " + str(p.name))
                 process_list.append(p)
                 if (len(process_list) % self.args.jobs) == 0:
                     if self.args and self.args.debug:
-                        print("PG_RESTORE FUNCTIONS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                        self._debug_print("PG_RESTORE FUNCTIONS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
                     for j in process_list:
                         j.start()
                     for j in process_list:
@@ -396,7 +396,7 @@ class PGExtractor:
         # If --jobs value was not reached, finish off any that were left in the queue
         if len(process_list) > 0:
             if self.args and self.args.debug:
-                print("PG_RESTORE FUNCTIONS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                self._debug_print("PG_RESTORE FUNCTIONS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
             for j in process_list:
                 j.start()
             for j in process_list:
@@ -461,11 +461,11 @@ class PGExtractor:
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
                     if self.args and self.args.debug:
-                        print("PG_RESTORE SEQUENCE PROCESS CREATED: " + str(p.name))
+                        self._debug_print("PG_RESTORE SEQUENCE PROCESS CREATED: " + str(p.name))
                     process_list.append(p)
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
-                            print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(process_count))
+                            self._debug_print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(process_count))
                         for j in process_list:
                             j.start()
                         for j in process_list:
@@ -477,7 +477,7 @@ class PGExtractor:
             # If --jobs value was not reached, finish off any that were left in the queue
             if len(process_list) > 0:
                 if self.args and self.args.debug:
-                    print("PG_RESTORE SEQUENCE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                    self._debug_print("PG_RESTORE SEQUENCE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
                 for j in process_list:
                     j.start()
                 for j in process_list:
@@ -512,11 +512,11 @@ class PGExtractor:
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
                     if self.args and self.args.debug:
-                        print("PG_RESTORE DEFAULT PRIVS PROCESS CREATED: " + str(p.name))
+                        self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS CREATED: " + str(p.name))
                     process_list.append(p)
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
-                            print("PG_RESTORE DEFAULT PRIVS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                            self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
                         for j in process_list:
                             j.start()
                         for j in process_list:
@@ -528,7 +528,7 @@ class PGExtractor:
             # If --jobs value was not reached, finish off any that were left in the queue
             if len(process_list) > 0:
                 if self.args and self.args.debug:
-                    print("PG_RESTORE DEFAULT PRIVS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                    self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
                 for j in process_list:
                     j.start()
                 for j in process_list:
@@ -617,11 +617,11 @@ class PGExtractor:
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
                     if self.args and self.args.debug:
-                        print("PG_RESTORE PROCESS CREATED: " + str(p.name))
+                        self._debug_print("PG_RESTORE PROCESS CREATED: " + str(p.name))
                     process_list.append(p)
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
-                            print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
+                            self._debug_print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
                         for j in process_list:
                             j.start()
                         for j in process_list:
@@ -633,7 +633,7 @@ class PGExtractor:
             # If --jobs value was not reached, finish off any that were left in the queue
             if len(process_list) > 0:
                 if self.args and self.args.debug:
-                    print("PG_RESTORE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
+                    self._debug_print("PG_RESTORE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
                 for j in process_list:
                     j.start()
                 for j in process_list:
@@ -641,9 +641,9 @@ class PGExtractor:
         # end if block for other_object_list
 
         if self.args and self.args.debug:
-            print("\nEXTRACT FILE LIST")
+            self._debug_print("\nEXTRACT FILE LIST")
             for f in extract_file_list:
-               print(f)
+               self._debug_print(f)
 
         return extract_file_list
     # end create_extract_files()
@@ -661,7 +661,7 @@ class PGExtractor:
         if target_dir == "#default#":
             target_dir = self.args.basedir
         if self.args and self.args.debug:
-            print("\nDELETE LIST")
+            self._debug_print("\nDELETE LIST")
         for root, dirs, files in os.walk(target_dir):
             files = [f for f in files if not f[0] == '.'] # ignore hidden files
             dirs[:] = [d for d in dirs if not d[0] == '.'] # ignore hidden dirs
@@ -670,7 +670,7 @@ class PGExtractor:
                 if ( full_file_name not in keep_file_list and
                         re.search(r'\.sql$', name) ):
                     if self.args and self.args.debug:
-                        print("DELETE FILE: " + full_file_name)
+                        self._debug_print("DELETE FILE: " + full_file_name)
                     os.remove(full_file_name)
 
         # Clean up empty folders excluding top root
@@ -679,7 +679,7 @@ class PGExtractor:
             dirs[:] = [d for d in dirs if not d[0] == '.'] # ignore hidden dirs
             if root != target_dir and len(files) == 0 and len(dirs) == 0:
                 if self.args and self.args.debug:
-                    print("DELETE EMPTY DIR: " + root)
+                    self._debug_print("DELETE EMPTY DIR: " + root)
                 os.rmdir(root)
     # end delete_files()
 
@@ -703,7 +703,7 @@ class PGExtractor:
         output_file = os.path.join(output_file, "roles.sql")
         pg_dumpall_cmd.append("--file=" + output_file)
         if self.args.debug:
-            print("\nEXTRACT ROLE STATEMENT: " + str(pg_dumpall_cmd))
+            self._debug_print("\nEXTRACT ROLE STATEMENT: " + str(pg_dumpall_cmd))
         try:
             subprocess.check_output(pg_dumpall_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
@@ -731,7 +731,7 @@ class PGExtractor:
         if target_dir_views == "#default#":
             target_dir_views = os.path.join(self.args.basedir, "views")
         if self.args and self.args.debug:
-            print("\nOR REPLACE LIST")
+            self._debug_print("\nOR REPLACE LIST")
         if os.path.exists(target_dir_funcs):
             for root, dirs, files in os.walk(target_dir_funcs):
                 files = [f for f in files if not f[0] == '.'] # ignore hidden files
@@ -739,7 +739,7 @@ class PGExtractor:
                 for name in files:
                     full_file_name = os.path.join(root, name)
                     if self.args and self.args.debug:
-                        print(full_file_name)
+                        self._debug_print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
                         sys.stdout.buffer.write(
                             re.sub(r'^CREATE FUNCTION\b', "CREATE OR REPLACE FUNCTION", line.decode()).encode()
@@ -751,7 +751,7 @@ class PGExtractor:
                 for name in files:
                     full_file_name = os.path.join(root, name)
                     if self.args and self.args.debug:
-                        print(full_file_name)
+                        self._debug_print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
                         # As of V9.4beta2 MATERIALIZED VIEWS cannot use the "CREATE OR REPLACE" syntax
                         sys.stdout.buffer.write(
@@ -908,10 +908,10 @@ class PGExtractor:
         declared in constructor.
         """
         if self.args.debug:
-            print("\nCLEANUP TEMP FILES")
+            self._debug_print("\nCLEANUP TEMP FILES")
         for f in self.temp_filelist:
             if self.args.debug:
-                print(f)
+                self._debug_print(f)
             if os.path.exists(f):
                 os.remove(f)
 
@@ -958,7 +958,7 @@ class PGExtractor:
                 pg_dump_cmd.append(s)
         # Table include/exclude done in _filter_object_list(). Doing it here excludes all other objects in the dump file.
         if self.args.debug:
-            print(pg_dump_cmd)
+            self._debug_print(pg_dump_cmd)
         try:
             self.tmp_dump_file.close()
             subprocess.check_output(pg_dump_cmd, stderr=subprocess.STDOUT)
@@ -1144,9 +1144,9 @@ class PGExtractor:
             filtered_list.append(o)
 
         if self.args.debug:
-            print("\nFILTERED OBJECT LIST")
+            self._debug_print("\nFILTERED OBJECT LIST")
             for o in filtered_list:
-                print(o)
+                self._debug_print(o)
         return filtered_list
     # end _filter_object_list()
 
@@ -1257,7 +1257,7 @@ class PGExtractor:
         if self.args and self.args.column_inserts:
             pg_dump_cmd.append("--column-inserts")
         if self.args.debug:
-            print("EXTRACT DUMP: " + str(pg_dump_cmd))
+            self._debug_print("EXTRACT DUMP: " + str(pg_dump_cmd))
         try:
             subprocess.check_output(pg_dump_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
@@ -1278,9 +1278,9 @@ class PGExtractor:
         """
         if self.args.debug:
             fh = open(list_file, 'r', encoding='utf-8')
-            print("\nRESTORE LIST FILE CONTENTS")
+            self._debug_print("\nRESTORE LIST FILE CONTENTS")
             for l in fh:
-                print(l)
+                self._debug_print(l)
         restore_cmd = ["pg_restore"]
         restore_cmd.append("--use-list=" + list_file)
         restore_cmd.append("--file=" + output_file)
@@ -1288,7 +1288,7 @@ class PGExtractor:
             restore_cmd.append("--clean")
         restore_cmd.append(self.tmp_dump_file.name)
         if self.args.debug:
-            print("EXTRACT RESTORE: " + str(restore_cmd))
+            self._debug_print("EXTRACT RESTORE: " + str(restore_cmd))
         try:
             subprocess.check_output(restore_cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
@@ -1326,7 +1326,7 @@ class PGExtractor:
         if self.args.service != None:
             os.environ['PGSERVICE'] = self.args.service
         if self.args.debug:
-            print(os.environ)
+            self._debug_print(os.environ)
         if self.args.pgbin != None:
             os.environ["PATH"] = self.args.pgbin + os.pathsep + os.environ["PATH"]
 
