@@ -1,3 +1,8 @@
+2.3.6
+* Fix typo when filtering pg_restore lines for comments that could possibly cause errors. Thanks to antonov-impulsm on github for pointing it out.
+* Handle non-standard characters being printed without error when the --debug option is used (Github Issue #38).
+
+
 2.3.5
 * Change to using binary file input mode when editing files to improve cross-platform support (Pull Request #37)
 
