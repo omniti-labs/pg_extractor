@@ -138,7 +138,7 @@ class PGExtractor:
                     main_object_list.append(object_dict)
                     continue
                 if obj_type.group('type').strip() == "COMMENT":
-                    if re.match(p_objid + r'\s\COMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
+                    if re.match(p_objid + r'\sCOMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
                         obj_mapping = p_comment_function_mapping.match(o)
                         objname = obj_mapping.group('objname')
                         basename = objname[:objname.find("(")]
@@ -152,7 +152,7 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
-                    elif re.match(p_objid + r'\s\COMMENT\s\-\sEXTENSION', o):
+                    elif re.match(p_objid + r'\sCOMMENT\s\-\sEXTENSION', o):
                         obj_mapping = p_comment_extension_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
@@ -162,7 +162,7 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
-                    elif re.match(p_objid + r'\s\COMMENT\s\-\s', o):
+                    elif re.match(p_objid + r'\sCOMMENT\s\-\s', o):
                         obj_mapping = p_comment_dash_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
