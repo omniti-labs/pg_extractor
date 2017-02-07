@@ -13,6 +13,7 @@ import sys
 import tempfile
 import time
 from multiprocessing import Process
+from multiprocessing import ProcessError
 
 class PGExtractor:
     """
@@ -22,7 +23,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.3.6"
+        self.version = "2.3.7"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -137,7 +138,7 @@ class PGExtractor:
                     main_object_list.append(object_dict)
                     continue
                 if obj_type.group('type').strip() == "COMMENT":
-                    if re.match(p_objid + r'\s\COMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
+                    if re.match(p_objid + r'\sCOMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
                         obj_mapping = p_comment_function_mapping.match(o)
                         objname = obj_mapping.group('objname')
                         basename = objname[:objname.find("(")]
@@ -151,7 +152,7 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
-                    elif re.match(p_objid + r'\s\COMMENT\s\-\sEXTENSION', o):
+                    elif re.match(p_objid + r'\sCOMMENT\s\-\sEXTENSION', o):
                         obj_mapping = p_comment_extension_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
@@ -161,7 +162,7 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
-                    elif re.match(p_objid + r'\s\COMMENT\s\-\s', o):
+                    elif re.match(p_objid + r'\sCOMMENT\s\-\s', o):
                         obj_mapping = p_comment_dash_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
@@ -308,10 +309,8 @@ class PGExtractor:
                 if (len(process_list) % self.args.jobs) == 0:
                     if self.args and self.args.debug:
                         self._debug_print("PG_DUMP PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
-                    for j in process_list:
-                        j.start()
-                    for j in process_list:
-                        j.join()
+                    self._start_jobs(process_list)
+                    self._wait_jobs(process_list)
                     process_list = []
                 process_count += 1
             else:
@@ -320,10 +319,8 @@ class PGExtractor:
         if len(process_list) > 0:
             if self.args and self.args.debug:
                 self._debug_print("PG_DUMP PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
-            for j in process_list:
-                j.start()
-            for j in process_list:
-                j.join()
+            self._start_jobs(process_list)
+            self._wait_jobs(process_list)
 
 
         # Objects that can be overloaded
@@ -385,10 +382,8 @@ class PGExtractor:
                 if (len(process_list) % self.args.jobs) == 0:
                     if self.args and self.args.debug:
                         self._debug_print("PG_RESTORE FUNCTIONS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
-                    for j in process_list:
-                        j.start()
-                    for j in process_list:
-                        j.join()
+                    self._start_jobs(process_list)
+                    self._wait_jobs(process_list)
                     process_list = []
                 process_count += 1
             else:
@@ -397,10 +392,8 @@ class PGExtractor:
         if len(process_list) > 0:
             if self.args and self.args.debug:
                 self._debug_print("PG_RESTORE FUNCTIONS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
-            for j in process_list:
-                j.start()
-            for j in process_list:
-                j.join()
+            self._start_jobs(process_list)
+            self._wait_jobs(process_list)
 
         # Handle if --orreplace is set with --schemadir. This must be done after view & function files have been exported.
         if self.args.orreplace:
@@ -466,10 +459,8 @@ class PGExtractor:
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
                             self._debug_print("PG_RESTORE SEQUENCE PROCESS RUN JOB COUNT REACHED: " + str(process_count))
-                        for j in process_list:
-                            j.start()
-                        for j in process_list:
-                            j.join()
+                        self._start_jobs(process_list)
+                        self._wait_jobs(process_list)
                         process_list = []
                     process_count += 1
                 else:
@@ -478,10 +469,8 @@ class PGExtractor:
             if len(process_list) > 0:
                 if self.args and self.args.debug:
                     self._debug_print("PG_RESTORE SEQUENCE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
-                for j in process_list:
-                    j.start()
-                for j in process_list:
-                    j.join()
+                self._start_jobs(process_list)
+                self._wait_jobs(process_list)
 
 
         process_list = []
@@ -517,10 +506,8 @@ class PGExtractor:
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
                             self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
-                        for j in process_list:
-                            j.start()
-                        for j in process_list:
-                            j.join()
+                        self._start_jobs(process_list)
+                        self._wait_jobs(process_list)
                         process_list = []
                     process_count += 1
                 else:
@@ -529,10 +516,8 @@ class PGExtractor:
             if len(process_list) > 0:
                 if self.args and self.args.debug:
                     self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
-                for j in process_list:
-                    j.start()
-                for j in process_list:
-                    j.join()
+                self._start_jobs(process_list)
+                self._wait_jobs(process_list)
 
 
 
@@ -622,10 +607,8 @@ class PGExtractor:
                     if (len(process_list) % self.args.jobs) == 0:
                         if self.args and self.args.debug:
                             self._debug_print("PG_RESTORE PROCESS RUN JOB COUNT REACHED: " + str(len(process_list)))
-                        for j in process_list:
-                            j.start()
-                        for j in process_list:
-                            j.join()
+                        self._start_jobs(process_list)
+                        self._wait_jobs(process_list)
                         process_list = []
                     process_count += 1
                 else:
@@ -634,10 +617,8 @@ class PGExtractor:
             if len(process_list) > 0:
                 if self.args and self.args.debug:
                     self._debug_print("PG_RESTORE PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
-                for j in process_list:
-                    j.start()
-                for j in process_list:
-                    j.join()
+                self._start_jobs(process_list)
+                self._wait_jobs(process_list)
         # end if block for other_object_list
 
         if self.args and self.args.debug:
@@ -1371,6 +1352,25 @@ class PGExtractor:
                 print("Cannot set --remove_passwords without setting either --getroles or --getall")
                 sys.exit(2)
     # end _set_config()
+
+
+    def _start_jobs(self, process_list):
+        for j in process_list:
+            j.start()
+    # end _start_jobs()
+
+
+    def _wait_jobs(self, process_list):
+        for j in process_list:
+            j.join()
+        for j in process_list:
+            if j.exitcode:
+                raise ProcessError("Error in job: name={!r} exitcode={!r}".format(
+                    j.name,
+                    j.exitcode,
+                ))
+    # end _wait_jobs()
+
 
 # end PGExtractor class
 

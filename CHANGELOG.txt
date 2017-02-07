@@ -1,5 +1,9 @@
+2.3.7
+* Explicit raising error if any of job-subprocesses was crashed (Pull Request #39).
+* Fix typo when filtering pg_restore lines for comments that could possibly cause errors.
+
+
 2.3.6
-* Fix typo when filtering pg_restore lines for comments that could possibly cause errors. Thanks to antonov-impulsm on github for pointing it out.
 * Handle non-standard characters being printed without error when the --debug option is used (Github Issue #38).
 
 
