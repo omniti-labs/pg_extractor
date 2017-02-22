@@ -23,7 +23,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.3.7"
+        self.version = "2.3.8"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -95,8 +95,16 @@ class PGExtractor:
                 r'(?P<objowner>\S+)')
         p_comment_dash_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>COMMENT)\s'
-                r'(?P<objsubtype>\-)\s'
+                r'(?P<objschema>\-)\s'
+                r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>\S+)\s'
+                r'(?P<objowner>\S+)')
+        p_comment_on_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>COMMENT)\s'
+                r'(?P<objschema>\S+)\s'
+                r'(?P<objsubtype>\S+)\s'
+                r'(?P<objname>\S+)\s'
+                r'(?P<objsource>ON\s\S+)\s'
                 r'(?P<objowner>\S+)')
         p_default_acl_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>DEFAULT ACL)\s'
@@ -104,6 +112,12 @@ class PGExtractor:
                 r'(?P<objstatement>DEFAULT PRIVILEGES FOR)\s'
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objrole>\S+)')
+        p_96_rule_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>RULE)\s'
+                r'(?P<objschema>\S+)\s'
+                r'(?P<objtable>\S+)\s'
+                r'(?P<objname>\S+)\s'
+                r'(?P<objowner>\S+)')
         if self.args and self.args.debug:
             self._debug_print("\nPG_RESTORE LIST:")
             for o in restore_object_list:
@@ -113,8 +127,8 @@ class PGExtractor:
                 continue
             obj_type = p_main_object_type.match(o)
             if obj_type != None:
-                # Matches function/agg or the ACL for them
                 if ( re.match(p_objid + r'\s(FUNCTION|AGGREGATE)', o) 
+                    # Matches function/agg or the ACL for them
                         or (obj_type.group('type').strip() == "ACL" and re.search(r'\(.*\)', o)) ):
                     obj_mapping = p_function_mapping.match(o)
                     objname = obj_mapping.group('objname')
@@ -172,6 +186,18 @@ class PGExtractor:
                             ])
                         main_object_list.append(object_dict)
                         continue
+                    elif re.match(p_objid + r'\sCOMMENT\s\S+\sRULE', o):
+                        obj_mapping = p_comment_on_mapping.match(o)
+                        object_dict = dict([('objid', obj_mapping.group('objid'))
+                            , ('objtype', obj_mapping.group('objtype'))
+                            , ('objschema', obj_mapping.group('objschema'))
+                            , ('objsubtype', obj_mapping.group('objsubtype'))
+                            , ('objname', obj_mapping.group('objname'))
+                            , ('objsource', obj_mapping.group('objsource'))
+                            , ('objowner', obj_mapping.group('objowner'))
+                            ])
+                        main_object_list.append(object_dict)
+                        continue
                     else:
                         obj_mapping = p_comment_mapping.match(o)
                         object_dict = dict([('objid', obj_mapping.group('objid'))
@@ -191,6 +217,20 @@ class PGExtractor:
                         , ('objstatement', obj_mapping.group('objstatement'))
                         , ('objsubtype', obj_mapping.group('objsubtype'))
                         , ('objrole', obj_mapping.group('objrole'))
+                        ])
+                    main_object_list.append(object_dict)
+                    continue
+                if self._check_bin_version("pg_restore", "9.6") == True and obj_type.group('type').strip() == "RULE":
+                    if self.args.debug:
+                        print("VERSION EXCEPTION: 9.6 rule build_main_object_list")
+                    # The pg_restore -l line changed in 9.6 for RULES
+                    obj_mapping = p_96_rule_mapping.match(o)
+                    object_dict = dict([('objid', obj_mapping.group('objid'))
+                        , ('objtype', obj_mapping.group('objtype'))
+                        , ('objschema', obj_mapping.group('objschema'))
+                        , ('objtable', obj_mapping.group('objtable'))
+                        , ('objname', obj_mapping.group('objname'))
+                        , ('objowner', obj_mapping.group('objowner'))
                         ])
                     main_object_list.append(object_dict)
                     continue
@@ -357,22 +397,16 @@ class PGExtractor:
             for d in dupe_list:
                 if ( o.get('objschema') == d.get('objschema') and 
                         o.get('objbasename') == d.get('objbasename') ):
-                    restore_line =  d.get('objid') + " " + d.get('objtype') + " " + d.get('objschema')
-                    restore_line += " " + d.get('objname') + " " + d.get('objowner') + "\n"
-                    fh.write(restore_line)
+                    fh.write(d.get('objid') + '\n')
             # Should grab all overloaded ACL & COMMENTS since it's matching on basename
             for a in acl_list:
                 if "objbasename" in a:
                     if o.get('objschema') == a.get('objschema') and o.get('objbasename') == a.get('objbasename'):
-                        restore_line =  a.get('objid') + " " + a.get('objtype') + " " + a.get('objschema') 
-                        restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
-                        fh.write(restore_line)
+                        fh.write(a.get('objid') + '\n')
             for c in comment_list:
                 if re.match(r'(FUNCTION|AGGREGATE)', c.get('objsubtype')):
                     if o.get('objschema') == c.get('objschema') and o.get('objbasename') == c.get('objbasename'):
-                        restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                        restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
-                        fh.write(restore_line)
+                        fh.write(c.get('objid') + '\n')
             fh.close()
             if self.args and self.args.jobs > 0:
                 p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
@@ -403,8 +437,6 @@ class PGExtractor:
                 target_dir_views = os.path.join(target_dir, o.get('objname'), "views")
                 self.or_replace(target_dir_funcs, target_dir_views)
 
-
-
         # Sequences are special little snowflakes
         process_list = []
         process_count = 0
@@ -431,25 +463,17 @@ class PGExtractor:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
                 self.temp_filelist.append(tmp_restore_list.name)
                 fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
-                restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
-                restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
-                fh.write(restore_line)
+                fh.write(o.get('objid') + '\n')
                 for d in dupe_list:
                     if o.get('objschema') == d.get('objschema') and o.get('objname') == d.get('objname'):
-                        restore_line =  d.get('objid') + " " + d.get('objtype') + " " + d.get('objschema')
-                        restore_line += " " + d.get('objname') + " " + d.get('objowner') + "\n"
-                        fh.write(restore_line)
+                        fh.write(d.get('objid') + '\n')
                 for a in acl_list:
                     if o.get('objschema') == a.get('objschema') and o.get('objname') == a.get('objname'):
-                        restore_line =  a.get('objid') + " " + a.get('objtype') + " " + a.get('objschema')
-                        restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
-                        fh.write(restore_line)
+                        fh.write(a.get('objid') + '\n')
                 for c in comment_list:
                     if re.search(r'SEQUENCE', c.get('objsubtype')):
                         if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
-                            restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                            restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
-                            fh.write(restore_line)
+                            fh.write(c.get('objid') + '\n')
                 fh.close()
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
@@ -494,9 +518,7 @@ class PGExtractor:
                 fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
                 for d in dupe_list:
                     if o.get('objrole') == d.get('objrole'):
-                        restore_line =  d.get('objid') + " " + d.get('objtype') + " " + d.get('objschema')
-                        restore_line += " " + d.get('objstatement') + " " + d.get('objrole') + "\n"
-                        fh.write(restore_line)
+                        fh.write(d.get('objid') + '\n')
                 fh.close()
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
@@ -518,7 +540,6 @@ class PGExtractor:
                     self._debug_print("PG_RESTORE DEFAULT PRIVS PROCESS RUN REMAINING JOBS: " + str(len(process_list)))
                 self._start_jobs(process_list)
                 self._wait_jobs(process_list)
-
 
 
         # All other objects extracted via _run_pg_restore()
@@ -578,26 +599,14 @@ class PGExtractor:
                     tmp_restore_list = tempfile.NamedTemporaryFile(prefix='pg_extractor_restore_list', delete=False)
                 self.temp_filelist.append(tmp_restore_list.name)
                 fh = open(tmp_restore_list.name, 'w', encoding='utf-8', newline='\n')
-                restore_line =  o.get('objid') + " " + o.get('objtype') + " " + o.get('objschema')
-                if o.get('objtype') == 'EXTENSION':
-                    restore_line += " " + o.get('objname') + "\n"
-                else:
-                    restore_line += " " + o.get('objname') + " " + o.get('objowner') + "\n"
-                fh.write(restore_line)
+                fh.write(o.get('objid') + '\n')
                 for a in acl_list:
                     if o.get('objschema') == a.get('objschema') and o.get('objname') == a.get('objname'):
-                        restore_line =  a.get('objid') + " " + a.get('objtype') + " " + a.get('objschema')
-                        restore_line += " " + a.get('objname') + " " + a.get('objowner') + "\n"
-                        fh.write(restore_line)
+                        fh.write(a.get('objid') + '\n')
                 for c in comment_list:
                     if re.search(r'(RULE|SCHEMA|TRIGGER|TYPE|EXTENSION|DOMAIN)', c.get('objsubtype')):
                         if o.get('objschema') == c.get('objschema') and o.get('objname') == c.get('objname'):
-                            restore_line =  c.get('objid') + " " + c.get('objtype') + " " + c.get('objschema')
-                            if c.get('objsubtype') == 'EXTENSION':
-                                restore_line += " " + c.get('objname') + "\n"
-                            else:
-                                restore_line += " " + c.get('objname') + " " + c.get('objowner') + "\n"
-                            fh.write(restore_line)
+                            fh.write(c.get('objid') + '\n')
                 fh.close()
                 if self.args and self.args.jobs > 0:
                     p = Process(target=self._run_pg_restore, args=([tmp_restore_list.name, output_file]))
@@ -676,6 +685,8 @@ class PGExtractor:
         """
         pg_dumpall_cmd = ["pg_dumpall", "--roles-only"]
         if (self._check_bin_version("pg_dumpall", "9.0") == True) and (self.args.dbname != None):
+            if self.args.debug:
+                print("VERSION EXCEPTION: 9.0 pg_dumpall rule")
             pg_dumpall_cmd.append("--database=" + self.args.dbname)
         if output_dir == "#default#":
             output_file = self.create_dir(os.path.join(self.args.basedir, "roles"))
@@ -856,7 +867,8 @@ class PGExtractor:
 
     def _check_bin_version(self, bin_file, min_version):
         """
-        Returns true if the major (x.x) version of the given postgres binary is greater than or equal to the one given
+        Returns true if the major version of the given postgres binary is greater than or equal to the one given
+        Note that prior to PG10, the major version was the first 2 pieces of the version number (x.x).
 
         * bin_file: binary postgres file that supports a --version argument (pg_dump, pg_dumpall, pg_restore)
             with the output format: bin_file (PostgreSQL) x.x.x
@@ -866,16 +878,27 @@ class PGExtractor:
         """
         min_version_list = min_version.split(".")
         min_ver1 = int(min_version_list[0])
-        min_ver2 = int(min_version_list[1])
-        dump_version = subprocess.check_output([bin_file, '--version'], universal_newlines = True).rstrip()
-        version_position = dump_version.index(")") + 1   # add one to remove the space after the paren close
-        dump_version_list = dump_version[version_position:].split(".")
-        dump_ver1 = int(dump_version_list[0])
-        dump_ver2 = int(dump_version_list[1])
-        if dump_ver1 < min_ver1:
+        if min_ver1 < 10:
+            min_ver2 = int(min_version_list[1])
+        bin_version = subprocess.check_output([bin_file, '--version'], universal_newlines = True).rstrip()
+        version_position = bin_version.index(")") + 1   # add one to remove the space after the paren close
+        bin_version_list = bin_version[version_position:].split(".")
+        bin_ver1 = int(bin_version_list[0])
+        if bin_ver1 < 10:
+            bin_ver2 = int(bin_version_list[1])
+
+        ## This is really spammy, but no better place to put it
+        ## Uncomment if needed for version debugging issues
+        #if self.args.debug:
+        #    print("VERSION CHECK:")
+        #    print("min_ver1: " + str(min_ver1) + ", min_ver2: " + str(min_ver2) )
+        #    print("bin_ver1: " + str(bin_ver1) + ", bin_ver2: " + str(bin_ver2) )
+        #    print()
+
+        if bin_ver1 < min_ver1:
             return False
-        else:
-            if dump_ver2 < min_ver2:
+        elif bin_ver1 < 10:
+            if bin_ver2 < min_ver2:
                 return False
         return True
 
@@ -1422,7 +1445,7 @@ LICENSE AND COPYRIGHT
 
 PG Extractor (pg_extractor) is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
 
-Copyright (c) 2015 OmniTI, Inc.
+Copyright (c) 2017 OmniTI, Inc.
 
 Permission to use, copy, modify, and distribute this software and its documentation for any purpose, without fee, and without a written agreement is hereby granted, provided that the above copyright notice and this paragraph and the following two paragraphs appear in all copies.
 

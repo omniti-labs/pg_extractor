@@ -1,3 +1,8 @@
+2.3.8
+* Fix RULE extraction breaking in 9.6 due to a change in restore -l pattern (Github Issue #40).
+* Greatly simplified the code for generating pg_restore commands for individual objects (only the object id is actually required in the file given to the -L option). You may see COMMENTs showing up in files that were missing them before.
+* Handle PostgreSQL 10 version number format change when checking binary versions internally.
+
 2.3.7
 * Explicit raising error if any of job-subprocesses was crashed (Pull Request #39).
 * Fix typo when filtering pg_restore lines for comments that could possibly cause errors.
