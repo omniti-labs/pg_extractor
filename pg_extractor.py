@@ -1290,6 +1290,8 @@ class PGExtractor:
         restore_cmd.append("--file=" + output_file)
         if self.args and self.args.clean:
             restore_cmd.append("--clean")
+        if self.args and self.args.no_owner:
+            restore_cmd.append("--no-owner")
         restore_cmd.append(self.tmp_dump_file.name)
         if self.args.debug:
             self._debug_print("EXTRACT RESTORE: " + str(restore_cmd))
