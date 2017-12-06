@@ -99,6 +99,11 @@ class PGExtractor:
                 r'(?P<objsubtype>\S+)\s'
                 r'(?P<objname>\S+)\s'
                 r'(?P<objowner>\S+)')
+        p_comment_for_db_dash_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>COMMENT)\s'
+                r'(?P<objschema>\-)\s'
+                r'(?P<objname>\S+)\s'
+                r'(?P<objowner>\S+)')
         p_comment_on_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>COMMENT)\s'
                 r'(?P<objschema>\S+)\s'
@@ -178,6 +183,12 @@ class PGExtractor:
                         continue
                     elif re.match(p_objid + r'\sCOMMENT\s\-\s', o):
                         obj_mapping = p_comment_dash_mapping.match(o)
+                        if obj_mapping is None:
+                            obj_mapping = p_comment_for_db_dash_mapping.match(o)
+                            if obj_mapping is None:
+                                raise ValueError('unexpected line in pg_restore list: {!r}'.format(o))
+                            # we don't want saving a database's comment, so we're just skipping this line
+                            continue
                         object_dict = dict([('objid', obj_mapping.group('objid'))
                             , ('objtype', obj_mapping.group('objtype'))
                             , ('objsubtype', obj_mapping.group('objsubtype'))
