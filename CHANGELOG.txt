@@ -1,3 +1,6 @@
+2.3.9
+ * Fixed handling of database comments
+
 2.3.8
 * Fix RULE extraction breaking in 9.6 due to a change in restore -l pattern (Github Issue #40).
 * Greatly simplified the code for generating pg_restore commands for individual objects (only the object id is actually required in the file given to the -L option). You may see COMMENTs showing up in files that were missing them before.
