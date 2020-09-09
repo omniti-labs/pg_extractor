@@ -744,7 +744,7 @@ class PGExtractor:
                     if self.args and self.args.debug:
                         self._debug_print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
-                        sys.stdout.buffer.write(
+                        sys.stdout.write(
                             re.sub(r'^CREATE FUNCTION\b', "CREATE OR REPLACE FUNCTION", line.decode()).encode()
                         )
         if os.path.exists(target_dir_views):
@@ -757,7 +757,7 @@ class PGExtractor:
                         self._debug_print(full_file_name)
                     for line in fileinput.input(full_file_name, inplace=True, mode='rb'):
                         # As of V9.4beta2 MATERIALIZED VIEWS cannot use the "CREATE OR REPLACE" syntax
-                        sys.stdout.buffer.write(
+                        sys.stdout.write(
                             re.sub(r'^CREATE VIEW\b', "CREATE OR REPLACE VIEW", line.decode()).encode()
                         )
     # end or_replace()
@@ -785,11 +785,11 @@ class PGExtractor:
         if os.path.isfile(role_file):
             for line in fileinput.input(role_file, inplace=True, mode='rb'):
                 if re.match(r'ALTER ROLE', line.decode()):
-                    sys.stdout.buffer.write(
+                    sys.stdout.write(
                         re.sub(r'(.*)\sPASSWORD\s.*(;)$', r'\1\2', line.decode()).encode()
                     )
                 else:
-                    sys.stdout.buffer.write(line)
+                    sys.stdout.write(line)
         else:
             print("Given role file does not exist: " + role_file)
     # end remove_passwords()
