@@ -23,7 +23,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.3.9"
+        self.version = "2.4.0"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -60,7 +60,8 @@ class PGExtractor:
         p_types = "ACL|AGGREGATE|COMMENT|CONSTRAINT|DATABASE|DEFAULT\sACL|DEFAULT|"
         p_types += "DOMAIN|EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
         p_types += "INDEX|RULE|SCHEMA|SEQUENCE\sOWNED\sBY|SEQUENCE\sSET|SEQUENCE|"
-        p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW|MATERIALIZED\sVIEW\sDATA|MATERIALIZED\sVIEW"
+        p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW|MATERIALIZED\sVIEW\sDATA|MATERIALIZED\sVIEW|"
+        p_types += "SERVER|USER\sMAPPING"
         p_main_object_type = re.compile(p_objid + r'\s(?P<type>' + p_types + ')')
         p_object_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>' + p_types + ')\s'
@@ -122,6 +123,19 @@ class PGExtractor:
                 r'(?P<objschema>\S+)\s'
                 r'(?P<objtable>\S+)\s'
                 r'(?P<objname>\S+)\s'
+                r'(?P<objowner>\S+)')
+        p_server_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>SERVER)\s'
+                r'(?P<objschema>\S+)\s'
+                r'(?P<objname>\S+)\s'
+                r'(?P<objowner>\S+)')
+        p_user_mapping_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
+                r'(?P<objtype>USER MAPPING)\s'
+                r'(?P<objschema>\S+)\s'
+                r'(?P<objstatement>USER MAPPING)\s'
+                r'(?P<objusermapping>\S+)\s'
+                r'(?P<objserverstatement>\S+)\s'
+                r'(?P<objservername>\S+)\s'
                 r'(?P<objowner>\S+)')
         if self.args and self.args.debug:
             self._debug_print("\nPG_RESTORE LIST:")
@@ -228,6 +242,29 @@ class PGExtractor:
                         , ('objstatement', obj_mapping.group('objstatement'))
                         , ('objsubtype', obj_mapping.group('objsubtype'))
                         , ('objrole', obj_mapping.group('objrole'))
+                        ])
+                    main_object_list.append(object_dict)
+                    continue
+                if obj_type.group('type').strip() == "SERVER":
+                    obj_mapping = p_server_mapping.match(o)
+                    object_dict = dict([('objid', obj_mapping.group('objid'))
+                        , ('objtype', obj_mapping.group('objtype'))
+                        , ('objschema', obj_mapping.group('objschema'))
+                        , ('objname', obj_mapping.group('objname'))
+                        , ('objowner', obj_mapping.group('objowner'))
+                        ])
+                    main_object_list.append(object_dict)
+                    continue
+                if obj_type.group('type').strip() == "USER MAPPING":
+                    obj_mapping = p_user_mapping_mapping.match(o)
+                    object_dict = dict([('objid', obj_mapping.group('objid'))
+                        , ('objtype', obj_mapping.group('objtype'))
+                        , ('objschema', obj_mapping.group('objschema'))
+                        , ('objstatement', obj_mapping.group('objstatement'))
+                        , ('objusermapping', obj_mapping.group('objusermapping'))
+                        , ('objserverstatement', obj_mapping.group('objserverstatement'))
+                        , ('objservername', obj_mapping.group('objservername'))
+                        , ('objowner', obj_mapping.group('objowner'))
                         ])
                     main_object_list.append(object_dict)
                     continue
@@ -557,7 +594,7 @@ class PGExtractor:
         process_list = []
         process_count = 0
         tmp_restore_list = None
-        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE", "EXTENSION", "DOMAIN"])
+        other_object_list = self.build_type_object_list(object_list, ["RULE", "SCHEMA", "TRIGGER", "TYPE", "EXTENSION", "DOMAIN", "SERVER", "USER MAPPING"])
         if len(other_object_list) > 0:
             if self.args and not self.args.quiet:
                 print("Extracting remaining objects...")
@@ -602,6 +639,19 @@ class PGExtractor:
                     # replace any non-alphanumeric characters with ",hexcode,"
                     objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
                     output_file = os.path.join(output_file, objname_filename + ".sql")
+
+                if o.get('objtype') == "SERVER":
+                    output_file = self.create_dir(os.path.join(output_file, 'servers'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objname_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objname'))
+                    output_file = os.path.join(output_file, objname_filename + ".sql")
+
+                if o.get('objtype') == "USER MAPPING":
+                    output_file = self.create_dir(os.path.join(output_file, 'user_mappings'))
+                    # replace any non-alphanumeric characters with ",hexcode,"
+                    objusermapping_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objusermapping'))
+                    objservername_filename = re.sub(r'\W', self.replace_char_with_hex, o.get('objservername'))
+                    output_file = os.path.join(output_file, objusermapping_filename + "_" + objservername_filename + ".sql")
 
                 extract_file_list.append(output_file)
                 if self.args and self.args.temp != None:
@@ -1155,6 +1205,12 @@ class PGExtractor:
             if (o.get('objtype') == 'EXTENSION'):
                 if (self.args.getextensions == False):
                     continue
+            if (o.get('objtype') == 'SERVER'):
+                if (self.args.getservers == False):
+                    continue
+            if (o.get('objtype') == 'USER MAPPING'):
+                if (self.args.getusermappings == False):
+                    continue
 
             filtered_list.append(o)
 
@@ -1174,7 +1230,7 @@ class PGExtractor:
         self.parser = argparse.ArgumentParser(description="A script for doing advanced dump filtering and managing schema for PostgreSQL databases. See NOTES section at the top of the script source for more details and examples.", epilog="NOTE: You can pass arguments via a file by passing the filename prefixed with an @ (instead of dashes). Each argument must be on its own line and its recommended to use the double-dash (--) options to make the formatting easiest. Ex: @argsfile.txt", fromfile_prefix_chars="@")
         args_conn = self.parser.add_argument_group(title="Database Connection")
         args_conn.add_argument('--host', help="Database server host or socket directory used by pg_dump. Can also be set with PGHOST environment variable. Leaving this unset will allow pg_dump & pg_dumpall to use the default socket connection.)")
-        args_conn.add_argument('-p', '--port', default="5432", help="Database server port. Can also set with the PGPORT environment variable.")
+        args_conn.add_argument('-p', '--port', help="Database server port. Can also set with the PGPORT environment variable.")
         args_conn.add_argument('-U', '--username', help="Database user name used by pg_dump. Can also be set with PGUSER environment variable. Defaults to system username.")
         args_conn.add_argument('-d', '--dbname', help="Database name to connect to. Also used as directory name under --basedir. Can also be set with PGDATABASE environment variable. If this or PGDATABASE are not set, object folders will be created at the --basedir level. Also used for --database(-l) option to pg_dumpall if pg_dumpall version is 9.0+ and dumping role data. Note that pg_dumpall does not recognize PGDATABASE. If pg_dumpall is less than 9.0, the old defaults are used (see PostgreSQL docs for defaults).")
         args_conn.add_argument('--service', help="Defined service to use to connect to a database. Can also be set with the PGSERVICE environment variable.")
@@ -1200,31 +1256,33 @@ class PGExtractor:
         args_filter.add_argument('--getextensions', action="store_true", help="Export extensions. Included in --getall. Note this only places a 'CREATE EXTENSION...' line in the file along with any associated COMMENTs. Extension source code is never dumped out with pg_dump. See PostgreSQL docs on extensions for more info.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
         args_filter.add_argument('--getdefaultprivs', action="store_true", help="Export all the default privilges for roles if they have been set. See the ALTER DEFAULT PRIVILEGES statement for how these are set. Theese are extracted to the same 'roles' folder that --getroles uses. Included in --getall.")
+        args_filter.add_argument('--getservers', action="store_true", help="Export servers. These include things like foreign data wrapper servers. Included in --getall.")
+        args_filter.add_argument('--getusermappings', action="store_true", help="Exporter user mappings, often used in foreign data wrappers. Note that passwords will be exported in the clear. Included in --getall.")
         args_filter.add_argument('--getsequences', action="store_true", help="If you need to export unowned sequences, set this option. Note that this will export both owned and unowned sequences to the separate sequence folder. --gettables or --getall will include any sequence that is owned by a table in that table's output file as well. Current sequence values can only be included in the extracted file if --getdata is set.")
         args_filter.add_argument('--gettriggers', action="store_true", help="If you need to export triggers definitions separately, use this option. This does not export the trigger function, just the CREATE TRIGGER statement. Use --getfuncs to get trigger functions. Note that trigger definitions are also included in their associated object files (tables, views, etc).")
         args_filter.add_argument('--getrules', action="store_true", help="If you need to export rules separately, set this option. Note that rules will also still be included in their associated object files (tables, views, etc).")
         args_filter.add_argument('--getdata', action="store_true", help="Include data in the output files. Format will be plaintext (-Fp) unless -Fc option is explicitly given. Note this option can cause a lot of extra disk space usage while the script is being run. At minimum make sure you have enough space for 3 full dumps of the database to account for all other options that can be set. See note in --temp option for use of temporary disk space when this option is used.")
         args_filter.add_argument('-Fc', '--Fc', action="store_true", help="Output in pg_dump custom format. Only applies to tables and views. Otherwise, default is always plaintext (-Fp) format.")
         args_filter.add_argument('-n', '--schema_include', help="CSV list of schemas to INCLUDE. Object in only these schemas will be exported.")
-        args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported. Comments can be precended with #.")
+        args_filter.add_argument('-nf', '--schema_include_file', help="Path to a file listing schemas to INCLUDE. Each schema goes on its own line. Object in only these schemas will be exported. Comments can be preceded with #.")
         args_filter.add_argument('-N', '--schema_exclude', help="CSV list of schemas to EXCLUDE. All objects in these schemas will be ignored. If both -n and -N are set, pg_extractor follows the same rules as pg_dump for such a case.")
-        args_filter.add_argument('-Nf', '--schema_exclude_file', help="Path to a file listing schemas to EXCLUDE. Each schema goes on its own line. All objects in these schemas will be ignored. If both -nf and -Nf are set, pg_extractor follows the same rules as pg_dump for such a case. Comments can be precended with #.")
+        args_filter.add_argument('-Nf', '--schema_exclude_file', help="Path to a file listing schemas to EXCLUDE. Each schema goes on its own line. All objects in these schemas will be ignored. If both -nf and -Nf are set, pg_extractor follows the same rules as pg_dump for such a case. Comments can be preceded with #.")
         args_filter.add_argument('-t', '--table_include', help="CSV list of tables to INCLUDE. Only these tables will be extracted.")
-        args_filter.add_argument('-tf', '--table_include_file', help="Path to a file listing tables to INCLUDE. Each table goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-tf', '--table_include_file', help="Path to a file listing tables to INCLUDE. Each table goes on its own line. Comments can be preceded with #.")
         args_filter.add_argument('-T', '--table_exclude', help="CSV list of tables to EXCLUDE. These tables will be not be extracted.")
-        args_filter.add_argument('-Tf', '--table_exclude_file', help="Path to a file listing tables to EXCLUDE. Each table goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-Tf', '--table_exclude_file', help="Path to a file listing tables to EXCLUDE. Each table goes on its own line. Comments can be preceded with #.")
         args_filter.add_argument('-v', '--view_include', help="CSV list of views to INCLUDE. Only these views will be extracted.")
-        args_filter.add_argument('-vf', '--view_include_file', help="Path to a file listing views to INCLUDE. Each view goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-vf', '--view_include_file', help="Path to a file listing views to INCLUDE. Each view goes on its own line. Comments can be preceded with #.")
         args_filter.add_argument('-V', '--view_exclude', help="CSV list of views to EXCLUDE. These views will be not be extracted.")
-        args_filter.add_argument('-Vf', '--view_exclude_file', help="Path to a file listing views to EXCLUDE. Each view goes on its own line. Comments can be precended with #.")
-        args_filter.add_argument('-pf', '--function_include_file', help="Path to a file listing functions/aggregates to INCLUDE. Each function goes on its own line. Only these functions will be extracted. Comments can be precended with #.")
-        args_filter.add_argument('-Pf', '--function_exclude_file', help="Path to a file listing functions/aggregates to EXCLUDE. Each function goes on its own line. These functions will not be extracted. Comments can be precended with #.")
+        args_filter.add_argument('-Vf', '--view_exclude_file', help="Path to a file listing views to EXCLUDE. Each view goes on its own line. Comments can be preceded with #.")
+        args_filter.add_argument('-pf', '--function_include_file', help="Path to a file listing functions/aggregates to INCLUDE. Each function goes on its own line. Only these functions will be extracted. Comments can be preceded with #.")
+        args_filter.add_argument('-Pf', '--function_exclude_file', help="Path to a file listing functions/aggregates to EXCLUDE. Each function goes on its own line. These functions will not be extracted. Comments can be preceded with #.")
         args_filter.add_argument('-o', '--owner_include', help="CSV list of object owners to INCLUDE. Only objects owned by these owners will be extracted.")
-        args_filter.add_argument('-of', '--owner_include_file', help="Path to a file listing object owners to INCLUDE. Each owner goes on its own line. Comments can be precended with #.")
+        args_filter.add_argument('-of', '--owner_include_file', help="Path to a file listing object owners to INCLUDE. Each owner goes on its own line. Comments can be preceded with #.")
         args_filter.add_argument('-O', '--owner_exclude', help="CSV list of object owners to EXCLUDE. Objects owned by these owners will not be extracted.")
-        args_filter.add_argument('-Of', '--owner_exclude_file', help="Path to a file listing object owners to EXCLUDE. Each owner goes on its own line. Comments can be precended with #.")
-        args_filter.add_argument('-rf', '--regex_include_file', help="Path to a file containing regex patterns of objects to INCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). Comments can be precended with #.")
-        args_filter.add_argument('-Rf', '--regex_exclude_file', help="Path to a file containing regex patterns of objects to EXCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). If both -rf and -Rf are set at the same time, items will be excluded first than any that remain will match against include. Comments can be precended with #.")
+        args_filter.add_argument('-Of', '--owner_exclude_file', help="Path to a file listing object owners to EXCLUDE. Each owner goes on its own line. Comments can be preceded with #.")
+        args_filter.add_argument('-rf', '--regex_include_file', help="Path to a file containing regex patterns of objects to INCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). Comments can be preceded with #.")
+        args_filter.add_argument('-Rf', '--regex_exclude_file', help="Path to a file containing regex patterns of objects to EXCLUDE. These must be valid, non-rawstring python regex patterns. Each pattern goes on its own line. Note this will match against all objects (tables, views, functions, etc). If both -rf and -Rf are set at the same time, items will be excluded first than any that remain will match against include. Comments can be preceded with #.")
         args_filter.add_argument('--no_owner', action="store_true", help="Do not add commands to extracted files that set ownership of objects to match the original database.")
         args_filter.add_argument('-x', '--no_acl', '--no_privileges', action="store_true", help="Prevent dumping of access privileges (grant/revoke commands")
 
@@ -1367,8 +1425,10 @@ class PGExtractor:
             self.args.getroles = True
             self.args.getdefaultprivs = True
             self.args.getextensions = True
+            self.args.getservers = True
+            self.args.getusermappings = True
         elif any([a for a in (self.args.getschemata,self.args.gettables,self.args.getfuncs,self.args.getviews,self.args.gettypes
-            ,self.args.getroles,self.args.getdefaultprivs,self.args.getsequences,self.args.gettriggers,self.args.getrules,self.args.getextensions)]):
+            ,self.args.getroles,self.args.getdefaultprivs,self.args.getsequences,self.args.gettriggers,self.args.getrules,self.args.getextensions,self.args.getservers,self.args.getusermappings)]):
             pass # Do nothing since at least one output option was set
         else:
             print("No extraction options set. Must set --getall or one of the other --get<object> arguments.")
