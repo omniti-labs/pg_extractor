@@ -1,3 +1,7 @@
+2.4.1
+ * Added extraction of PROCEDURE objects. Functionally works the same way as FUNCTION extraction and is included in the --getfuncs output. Objects are put into their own "procedures" folder. (Github Issue #52)
+
+
 2.4.0
  * New options --getservers and --getusermappings for extracting foreign data wrapper information. They are included in --getall (Github Issue #42)
  * Fixed PGPORT environment variable not being honored. Just removed default value for the --port option in the argument configuration so it will honor whatever the default port value is for the environment. (Github Issue #47)
