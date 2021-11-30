@@ -23,7 +23,7 @@ class PGExtractor:
     """
 
     def __init__(self):
-        self.version = "2.4.0"
+        self.version = "2.4.1"
         self.args = False
         self.temp_filelist = []
         self.error_list = []
@@ -61,7 +61,7 @@ class PGExtractor:
         p_types += "DOMAIN|EXTENSION|FK\sCONSTRAINT|FOREIGN\sTABLE|FUNCTION|"
         p_types += "INDEX|RULE|SCHEMA|SEQUENCE\sOWNED\sBY|SEQUENCE\sSET|SEQUENCE|"
         p_types += "TABLE\sDATA|TABLE|TRIGGER|TYPE|VIEW|MATERIALIZED\sVIEW\sDATA|MATERIALIZED\sVIEW|"
-        p_types += "SERVER|USER\sMAPPING"
+        p_types += "SERVER|USER\sMAPPING|PROCEDURE"
         p_main_object_type = re.compile(p_objid + r'\s(?P<type>' + p_types + ')')
         p_object_mapping = re.compile(r'(?P<objid>' + p_objid + ')\s'
                 r'(?P<objtype>' + p_types + ')\s'
@@ -146,7 +146,7 @@ class PGExtractor:
                 continue
             obj_type = p_main_object_type.match(o)
             if obj_type != None:
-                if ( re.match(p_objid + r'\s(FUNCTION|AGGREGATE)', o) 
+                if ( re.match(p_objid + r'\s(FUNCTION|AGGREGATE|PROCEDURE)', o)
                     # Matches function/agg or the ACL for them
                         or (obj_type.group('type').strip() == "ACL" and re.search(r'\(.*\)', o)) ):
                     obj_mapping = p_function_mapping.match(o)
@@ -171,7 +171,7 @@ class PGExtractor:
                     main_object_list.append(object_dict)
                     continue
                 if obj_type.group('type').strip() == "COMMENT":
-                    if re.match(p_objid + r'\sCOMMENT\s\S+\s(FUNCTION|AGGREGATE)', o):
+                    if re.match(p_objid + r'\sCOMMENT\s\S+\s(FUNCTION|AGGREGATE|PROCEDURE)', o):
                         obj_mapping = p_comment_function_mapping.match(o)
                         objname = obj_mapping.group('objname')
                         basename = objname[:objname.find("(")]
@@ -415,7 +415,7 @@ class PGExtractor:
         process_list = []
         process_count = 0
         tmp_restore_list = None
-        func_agg_list = self.build_type_object_list(object_list, ["FUNCTION", "AGGREGATE"])
+        func_agg_list = self.build_type_object_list(object_list, ["FUNCTION", "AGGREGATE", "PROCEDURE"])
         dupe_list = func_agg_list
         if len(func_agg_list) > 0 and self.args and not self.args.quiet:
             print("Extracting functions & aggregates...")
@@ -428,6 +428,8 @@ class PGExtractor:
                 output_file = self.create_dir(os.path.join(output_file, 'functions'))
             elif o.get('objtype') == "AGGREGATE":
                 output_file = self.create_dir(os.path.join(output_file, 'aggregates'))
+            elif o.get('objtype') == "PROCEDURE":
+                output_file = self.create_dir(os.path.join(output_file, 'procedures'))
             else:
                 print("Invalid object type found while creating function/aggregate extraction files: " + o.get('objtype'))
             # replace any non-alphanumeric characters with ",hexcode,"
@@ -452,7 +454,7 @@ class PGExtractor:
                     if o.get('objschema') == a.get('objschema') and o.get('objbasename') == a.get('objbasename'):
                         fh.write(a.get('objid') + '\n')
             for c in comment_list:
-                if re.match(r'(FUNCTION|AGGREGATE)', c.get('objsubtype')):
+                if re.match(r'(FUNCTION|AGGREGATE|PROCEDURE)', c.get('objsubtype')):
                     if o.get('objschema') == c.get('objschema') and o.get('objbasename') == c.get('objbasename'):
                         fh.write(c.get('objid') + '\n')
             fh.close()
@@ -1183,7 +1185,7 @@ class PGExtractor:
                 if ( len(view_include_list) > 0 and
                         (o.get('objschema') + "." + o.get('objname')) not in view_include_list ):
                     continue
-            if (re.match(r'FUNCTION|AGGREGATE', o.get('objtype'))):
+            if (re.match(r'FUNCTION|AGGREGATE|PROCEDURE', o.get('objtype'))):
                 if ( self.args.getfuncs == False or
                         (o.get('objschema') + "." + o.get('objname')) in func_exclude_list):
                     continue
@@ -1251,7 +1253,7 @@ class PGExtractor:
         args_filter.add_argument('--getschemata', action="store_true", help="Export schema ddl. Included in --getall.")
         args_filter.add_argument('--gettables', action="store_true", help="Export table ddl (includes foreign tables). Each file includes table's indexes, constraints, sequences, comments, rules, triggers. Included in --getall.")
         args_filter.add_argument('--getviews', action="store_true", help="Export view ddl (includes materialized views). Each file includes all rules & triggers. Included in --getall.")
-        args_filter.add_argument('--getfuncs', action="store_true", help="Export function and/or aggregate ddl. Overloaded functions will all be in the same base filename. Custom aggregates are put in a separate folder than regular functions. Included in --getall.")
+        args_filter.add_argument('--getfuncs', action="store_true", help="Export function, procedures and aggregate ddl. Overloaded functions will all be in the same base filename. Procedures and custom aggregates are put in a separate folder than regular functions. Included in --getall.")
         args_filter.add_argument('--gettypes', action="store_true", help="Export custom types and domains. Included in --getall.")
         args_filter.add_argument('--getextensions', action="store_true", help="Export extensions. Included in --getall. Note this only places a 'CREATE EXTENSION...' line in the file along with any associated COMMENTs. Extension source code is never dumped out with pg_dump. See PostgreSQL docs on extensions for more info.")
         args_filter.add_argument('--getroles', action="store_true", help="Export all roles in the cluster to a single file. A different folder for this file can be specified by --rolesdir if it needs to be kept out of version control. Included in --getall.")
